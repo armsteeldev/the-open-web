@@ -1,8 +1,8 @@
 # The Wall release candidate
 
-Release ID: `wall-rc-1`  
-Application source and full clean-checkout verification: commit `f87bfcc2cd52`  
-Runtime: Node.js `v22.23.4`  
+Release ID: `wall-rc-1`<br>
+Application source and full clean-checkout verification: commit `f87bfcc2cd52`<br>
+Runtime: Node.js `v22.23.4`<br>
 Verification date: 2026-11-09 UTC
 
 The full verification ran from a fresh `git archive` of the source commit. Follow-up commits after it change documentation only; no application code changed after verification. No push, release tag, or production deployment was made.
