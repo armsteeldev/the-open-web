@@ -8,7 +8,7 @@ Inspect the actual Caddyfile and its trust-proxy configuration. Integrate the se
 
 ## Repeatable release procedure
 
-Run these checks from a clean checkout on Node 22.23.4 or later in the 22.x line. `node:sqlite` is still marked Active development by the Node 22 documentation; this release candidate keeps it because the exact target runtime was exercised for migrations, concurrent writes, WAL backup/restore, compiled startup and shutdown. Pin and record the deployed Node patch, and rerun these checks whenever it changes. The database API is synchronous and must remain a single backend process.
+Run these checks from a clean checkout on Node 22.23.4 or later in the 22.x line. The Node 22 documentation still classifies `node:sqlite` as Experimental; this release candidate keeps it because the exact target runtime was exercised for migrations, concurrent writes, WAL backup/restore, crash recovery, compiled startup and shutdown. Pin and record the deployed Node patch, and rerun these checks whenever it changes. The database API is synchronous and must remain a single backend process. See the [Node 22.23.4 SQLite API documentation](https://nodejs.org/download/release/latest-jod/docs/api/sqlite.html).
 
 ```sh
 npm ci
