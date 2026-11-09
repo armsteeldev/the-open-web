@@ -1,0 +1,23 @@
+open.armsteel.dev {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+        -Server
+    }
+    @root path /
+    redir @root /wall/ 302
+    handle /api/* {
+        reverse_proxy 127.0.0.1:4322 {
+            header_up X-Forwarded-For {client_ip}
+            header_up X-Real-IP {client_ip}
+        }
+    }
+    handle {
+        root * /opt/the-open-web/current/apps/web/dist
+        file_server
+    }
+}

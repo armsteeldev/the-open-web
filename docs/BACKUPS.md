@@ -1,0 +1,5 @@
+# Backup and restore
+
+Choose an explicitly approved destination with sufficient space. `node scripts/backup.mjs /var/lib/the-open-web/open-web.sqlite /path/to/new-backup.sqlite` uses SQLite's online backup API and runs `integrity_check` on a private sibling file, including committed WAL content. It publishes the verified copy atomically and refuses to overwrite an existing destination; an unsuccessful attempt removes its temporary file. Backups contain visitor pseudonymous identifiers; restrict access and define retention. Transfer copies off-host using an approved destination; this project does not assume one.
+
+Test restoration on disposable data: copy the backup to a new temporary location, run `PRAGMA integrity_check`, start an isolated server pointing to the copy on an unused port and verify tiles. For actual recovery, stop only the Open Web service, preserve the current database and WAL/SHM files, place a verified copy at the configured database path with correct permissions, then restart and check health and canvas. A restore loses all writes after the backup; coordinate that decision. Do not replace an active WAL database underneath a running process.

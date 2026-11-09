@@ -1,0 +1,41 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { DatabaseSync } from 'node:sqlite';
+import { openDb, place } from '../apps/server/src/db.js';
+
+test('ordered migrations upgrade existing data and fail closed on newer schemas',()=>{
+ const root=mkdtempSync(join(tmpdir(),'open-web-migrate-')); const path=join(root,'wall.sqlite'); const dir=join(root,'migrations'); mkdirSync(dir);
+ const url=pathToFileURL(dir+'/'); writeFileSync(join(dir,'001_initial.sql'),readFileSync(new URL('../database/migrations/001_initial.sql',import.meta.url)));
+ try {
+  let db=openDb(path,url);place(db,'visitor',1,2,3,1000,5000);db.close();
+  db=openDb(path,new URL('../database/migrations/',import.meta.url));
+  assert.deepEqual(db.prepare('SELECT version FROM migrations ORDER BY version').all().map(r=>r.version),[1,2]);
+  assert.equal((db.prepare('SELECT pixels FROM wall_tiles').get()!.pixels as Uint8Array)[201],3);db.close();
+  const advanced=join(root,'advanced');mkdirSync(advanced);writeFileSync(join(advanced,'001_initial.sql'),readFileSync(new URL('../database/migrations/001_initial.sql',import.meta.url)));writeFileSync(join(advanced,'002_cooldown_retention.sql'),readFileSync(new URL('../database/migrations/002_cooldown_retention.sql',import.meta.url)));for(let version=3;version<=10;version++)writeFileSync(join(advanced,`${String(version).padStart(3,'0')}_extra.sql`),'SELECT 1;');db=openDb(path,pathToFileURL(advanced+'/'));assert.equal(db.prepare('SELECT MAX(version) version FROM migrations').get()!.version,10);db.close();
+  assert.throws(()=>openDb(path,new URL('../database/migrations/',import.meta.url)),/not supported/);
+ } finally {rmSync(root,{recursive:true,force:true});}
+});
+test('failed migrations roll back and malformed tiles cannot be overwritten',()=>{
+ const root=mkdtempSync(join(tmpdir(),'open-web-migrate-'));const path=join(root,'wall.sqlite');const dir=join(root,'migrations');mkdirSync(dir);const url=pathToFileURL(dir+'/');
+ writeFileSync(join(dir,'001_initial.sql'),readFileSync(new URL('../database/migrations/001_initial.sql',import.meta.url)));
+ try {let db=openDb(path,url);db.prepare('INSERT INTO wall_tiles VALUES (0,0,?)').run(new Uint8Array([1]));assert.throws(()=>place(db,'visitor',0,0,3,1000,5000),/tile data/);assert.equal(db.prepare('SELECT COUNT(*) n FROM visitor_cooldowns').get()!.n,0);const invalid=new Uint8Array(10000);invalid[500]=16;db.prepare('UPDATE wall_tiles SET pixels=? WHERE x=0 AND y=0').run(invalid);assert.throws(()=>place(db,'visitor',0,0,3,1000,5000),/tile data/);db.close();
+ writeFileSync(join(dir,'002_fail.sql'),'CREATE TABLE should_rollback (id INTEGER); INVALID SQL;');assert.throws(()=>openDb(path,url));db=new DatabaseSync(path);assert.equal(db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name='should_rollback'").get()!.n,0);assert.equal(db.prepare('SELECT COUNT(*) n FROM migrations').get()!.n,1);db.close();
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test('missing migration files fail startup',()=>{const root=mkdtempSync(join(tmpdir(),'open-web-empty-'));try{assert.throws(()=>openDb(join(root,'db'),pathToFileURL(root+'/')),/No database migrations/);}finally{rmSync(root,{recursive:true,force:true});}});
+
+test('cooldown rows are indexed and expired identity digests are removed during writes',()=>{
+ const root=mkdtempSync(join(tmpdir(),'open-web-retention-'));const db=openDb(join(root,'wall.sqlite'));
+ try {
+  const index=db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='visitor_cooldowns_placed_at_idx'").get();assert.ok(index);
+  place(db,'expired-visitor',1,2,3,1000,5000);
+  place(db,'active-visitor',4,5,6,10000,5000);
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM visitor_cooldowns WHERE visitor=?').get('expired-visitor')!.count,0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM visitor_cooldowns WHERE visitor=?').get('active-visitor')!.count,1);
+ } finally {db.close();rmSync(root,{recursive:true,force:true});}
+});

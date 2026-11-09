@@ -1,0 +1,44 @@
+---
+import { spaces } from '../../../../packages/shared/spaces';
+const current = Astro.url.pathname.replace(/\/+$/, '') || '/';
+---
+<details class="global-menu" data-global-menu>
+  <summary aria-label="Spaces" aria-controls="global-menu-panel">☰</summary>
+  <div class="menu-panel" id="global-menu-panel">
+    <div class="menu-label">The Open Web</div>
+    <nav aria-label="Spaces">
+      {spaces.map(space => <a href={space.path} aria-current={current === space.path.replace(/\/+$/, '') || current.startsWith(space.path.replace(/\/+$/, '') + '/') ? 'page' : undefined}>{space.label}</a>)}
+    </nav>
+  </div>
+</details>
+<script>
+  document.querySelectorAll<HTMLDetailsElement>('[data-global-menu]').forEach(menu => {
+    const trigger = menu.querySelector<HTMLElement>('summary')!;
+    document.addEventListener('pointerdown', event => {
+      if (!menu.open || menu.contains(event.target as Node)) return;
+      menu.open = false;
+      // The dismissing tap must not also place or drag a canvas pixel.
+      if (event.target instanceof HTMLCanvasElement) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }, true);
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && menu.open) { menu.open = false; trigger.focus(); }
+    });
+    menu.querySelectorAll('a').forEach(link => link.addEventListener('click', () => { menu.open = false; }));
+    window.addEventListener('pageshow', () => { menu.open = false; });
+  });
+</script>
+<style>
+  .global-menu { position: relative; }
+  summary { list-style: none; display: grid; place-items: center; }
+  summary::-webkit-details-marker { display: none; }
+  .menu-panel { position: absolute; top: calc(100% + 3px); left: 0; width: min(150px, calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right))); background: #fafafa; border: 1px solid #aaa; color: #333; }
+  .menu-label { padding: 7px 9px 3px; color: #666; }
+  nav { padding: 2px 4px 4px; }
+  nav a { display: block; color: inherit; text-decoration: none; padding: 6px; }
+  nav a:hover { background: #eee; }
+  nav a[aria-current="page"] { background: #e5e5e5; }
+  nav a:focus-visible { outline: 2px solid #345ea7; outline-offset: -2px; }
+</style>

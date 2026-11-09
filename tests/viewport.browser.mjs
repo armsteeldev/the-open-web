@@ -1,0 +1,5 @@
+import { chromium } from '@playwright/test';
+import assert from 'node:assert/strict';
+const base=process.env.OPEN_WEB_TEST_URL;if(!base)throw Error('Set OPEN_WEB_TEST_URL to an isolated test instance');
+const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH});
+try {const p=await browser.newPage({viewport:{width:1000,height:700}});await p.goto(base+'/wall');await p.getByText('Ready',{exact:true}).waitFor();await p.mouse.move(500,350);assert.equal(await p.locator('#coords').innerText(),'1000, 1000');await p.setViewportSize({width:700,height:900});await p.waitForFunction(()=>document.querySelector('canvas').width===700);await p.mouse.move(350,450);assert.equal(await p.locator('#coords').innerText(),'1000, 1000');await p.setViewportSize({width:844,height:390});await p.waitForFunction(()=>document.querySelector('canvas').width===844);assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth&&document.documentElement.scrollHeight<=innerHeight),true);console.log('PASS viewport resize, portrait-to-landscape fit and canvas center');}finally{await browser.close();}

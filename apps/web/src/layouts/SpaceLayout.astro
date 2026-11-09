@@ -1,0 +1,12 @@
+---
+import GlobalMenu from '../components/GlobalMenu.astro';
+interface Props { title: string }
+const { title } = Astro.props;
+---
+<!doctype html><html lang="en"><head><meta charset="utf-8"/><link rel="icon" href="/favicon.svg" type="image/svg+xml"/><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/><title>{title}</title></head><body>
+<slot />
+<div class="top"><GlobalMenu /><slot name="utility" /></div>
+</body></html>
+<style is:global>
+:root{font:13px system-ui,sans-serif;color:#333;background:#d7d7d7}*{box-sizing:border-box}body{margin:0;overflow:hidden}button,summary{font:inherit;color:inherit;background:#fafafa;border:1px solid #aaa;border-radius:2px;min-width:30px;height:30px;cursor:pointer}button:focus-visible,summary:focus-visible,a:focus-visible{outline:2px solid #345ea7;outline-offset:2px}.top{position:fixed;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));display:flex;gap:4px}
+</style>

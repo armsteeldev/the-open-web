@@ -1,0 +1,16 @@
+---
+import { PALETTE, COLOR_NAMES } from '../../../../packages/shared/wall';
+import SpaceLayout from '../layouts/SpaceLayout.astro';
+---
+<SpaceLayout title="The Wall — The Open Web">
+<canvas id="wall" tabindex="0" role="application" aria-label="Collaborative pixel wall" aria-describedby="wall-keyboard-help"></canvas>
+<p class="visually-hidden" id="wall-keyboard-help">Use arrow keys to move the selection, Shift and arrow keys to move ten pixels, and Enter or Space to place the selected colour.</p>
+<span class="visually-hidden" id="keyboard-position" role="status" aria-atomic="true"></span>
+<Fragment slot="utility"><button id="help" aria-label="Help" aria-controls="helptext" aria-expanded="false" title="Help">?</button></Fragment>
+<div id="helptext" hidden>Drag to move · scroll or pinch to zoom · tap or click to place</div>
+<div class="bottom"><div id="palette" role="group" aria-label="Colour">{PALETTE.map((color,i)=><button class="swatch" style={`--color:${color}`} data-color={i} aria-label={COLOR_NAMES[i]} aria-pressed={i===3?'true':'false'}></button>)}</div><div class="tools"><button id="minus" aria-label="Zoom out">−</button><button id="plus" aria-label="Zoom in">+</button><span id="status" aria-live="off">Connecting</span><span id="status-announcement" class="visually-hidden" role="status" aria-atomic="true"></span><span id="coords"></span></div></div>
+<script>import '../spaces/wall/client';</script></SpaceLayout>
+<style is:global>
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}#wall:focus-visible{outline:2px solid #345ea7;outline-offset:-2px}
+canvas{display:block;width:100vw;height:100dvh;touch-action:none;cursor:crosshair;image-rendering:pixelated}#helptext{position:fixed;top:46px;left:8px;background:#fafafa;border:1px solid #aaa;padding:8px;max-width:240px}.bottom{position:fixed;bottom:max(8px,env(safe-area-inset-bottom));left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));display:flex;align-items:end;justify-content:space-between;gap:8px;pointer-events:none}#palette,.tools{pointer-events:auto;background:#fafafa;border:1px solid #aaa;padding:3px;display:flex;gap:2px;align-items:center}#palette{display:grid;grid-template-columns:repeat(8,24px)}.swatch{background:var(--color);min-width:24px;width:24px;height:24px;border:1px solid #aaa}.swatch[aria-pressed=true]{outline:2px solid #333;outline-offset:-3px}.tools span{padding:0 4px;white-space:nowrap}@media(max-width:520px){.bottom{flex-wrap:wrap}.tools{margin-left:auto}#coords{display:none}}
+</style>

@@ -1,0 +1,42 @@
+{
+  "name": "the-open-web",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.23.4 <23"
+  },
+  "scripts": {
+    "dev:server": "tsx apps/server/src/index.ts",
+    "dev:web": "astro dev --root apps/web --host 127.0.0.1",
+    "build": "astro build --root apps/web && tsc -p tsconfig.server.json && node scripts/copy-migrations.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint apps/server/src packages/shared tests scripts eslint.config.js",
+    "test": "tsx --test tests/*.test.ts",
+    "test:browser": "node scripts/test-browser.mjs",
+    "test:built": "node scripts/test-built.mjs",
+    "test:load": "node scripts/load-test.mjs",
+    "start": "node dist/apps/server/src/index.js",
+    "test:production": "node scripts/test-production.mjs"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/websocket": "^11.2.0",
+    "fastify": "^5.6.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.0",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.0",
+    "astro": "^7.4.8",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.72.2"
+  },
+  "overrides": {
+    "minimatch": "^11.0.1"
+  }
+}

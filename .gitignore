@@ -1,0 +1,10 @@
+node_modules/
+apps/web/dist/
+apps/web/.astro/
+**/.astro/
+data/
+.env
+*.sqlite*
+*.log
+
+/dist/
