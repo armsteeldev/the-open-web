@@ -11,7 +11,7 @@ open.armsteel.dev {
     @root path /
     redir @root /wall/ 302
     handle /api/* {
-        reverse_proxy 127.0.0.1:4322 {
+        reverse_proxy 127.0.0.1:4323 {
             header_up X-Forwarded-For {client_ip}
             header_up X-Real-IP {client_ip}
         }

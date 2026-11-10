@@ -1,24 +1,9 @@
-# The Wall release candidate
+# Wall release verification record
 
-Release ID: `wall-rc-1`<br>
-Application source and full clean-checkout verification: commit `f87bfcc2cd52`<br>
-Runtime: Node.js `v22.23.4`<br>
-Verification date: 2026-11-09 UTC
+The release process is now maintained in [DEPLOYMENT.md](DEPLOYMENT.md). Run `npm run release -- --check-only` to repeat the current full verification against a clean committed checkout; that command reports the exact commit it checked and does not change production.
 
-The full verification ran from a fresh `git archive` of the source commit. Follow-up commits after it change documentation only; no application code changed after verification. No push, release tag, or production deployment was made.
+## Production deployment — 2026-11-10
 
-## Verification
+Commit `5c7fc8458aa1edbdc512691d9553cf8f2f197b56` was activated at `/opt/the-open-web/releases/5c7fc8458aa1edbdc512691d9553cf8f2f197b56`. The service recovered after activation and public/local health checks passed. A verified SQLite backup was saved to `/mnt/continental-cloud/backups/the-open-web/open-web-before-5c7fc84.sqlite` on the separate HDD.
 
-- `npm ci`: 358 packages installed; zero audit findings.
-- Lint, type checking, all 22 automated tests, and production build passed.
-- Chromium desktop and mobile emulation passed keyboard, touch, pinch zoom, orientation, refresh, multi-visitor, reconnection, stale-snapshot and WCAG 2.1 A/AA axe checks.
-- The compiled server passed with production-only dependencies. An isolated Caddy HTTPS instance passed configuration validation, routing, CSP, Secure cookies, WebSocket upgrade, and forwarding-header spoof tests.
-- Disposable WAL backup, integrity check, restore, application startup, preserved and new pixels, no-overwrite behavior, and hard-process-crash recovery passed.
-- `systemd-analyze verify deploy/open-web.service` passed.
-- Isolated load test passed at 1, 10, 25, 50, 100, 250 and 500 visitors; visitor 501 was rejected at the configured connection limit.
-
-## Release status
-
-**CONDITIONALLY READY.** The application code passed pre-deployment verification. Read-only public checks on 2026-11-09 at 23:00 UTC found `open.armsteel.dev` resolving through `mpmc.ddns.net` to `188.149.200.166`; HTTP redirected to HTTPS, but HTTPS failed during TLS negotiation with an `internal error` alert. The production service account, directories and environment file are not provisioned, and the live Caddy site map could not be read. Do not publish until the intended server address and live HTTPS route are confirmed and the service is provisioned using [DEPLOYMENT.md](DEPLOYMENT.md).
-
-Physical-device and manual screen-reader checks also remain. Chromium emulation and automated accessibility checks do not replace them.
+The public site was checked after release: desktop and mobile wall layout, initial coordinate display, status and palette, Spaces and Help controls, session cooldown duration, and browser console health. Future releases should use the automated procedure in `DEPLOYMENT.md`, which performs those release gates and polls readiness before considering activation successful.

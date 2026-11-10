@@ -16,7 +16,9 @@
     "test:built": "node scripts/test-built.mjs",
     "test:load": "node scripts/load-test.mjs",
     "start": "node dist/apps/server/src/index.js",
-    "test:production": "node scripts/test-production.mjs"
+    "test:production": "node scripts/test-production.mjs",
+    "release": "bash deploy/release.sh",
+    "rollback": "bash deploy/rollback-release.sh"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

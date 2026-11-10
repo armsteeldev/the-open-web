@@ -1,68 +1,59 @@
-# Deployment preparation — not yet deployed
+# Production deployment
 
-On 2026-11-09 read-only inspection found Caddy active, Node 22.23.4 available, and no system `open-web` account, `/opt/the-open-web`, `/var/lib/the-open-web`, or `/etc/the-open-web.env`. Local development processes owned by the workspace user were listening on 127.0.0.1:4321 and :4322; final release checks used separate temporary ports and did not restart them. The hostname resolved to CNAME `mpmc.ddns.net` / A `188.149.200.166`; HTTP returned Caddy's 308 redirect to HTTPS, but HTTPS requests to `/wall/` and `/api/health` failed during TLS negotiation with an `internal error` alert, so no public application or health response was verified. Noninteractive sudo was unavailable and Caddy's local admin API denied read access, so the live Caddy site map and firewall state could not be verified. Root had about 58 GiB free and swap was nearly full at inspection; neither is a deployment capacity approval. These are point-in-time observations and the DNS TTL was short. Recheck DNS, ports, TLS, available memory/swap and services before release. Do not alter the Armsteel portfolio. Verify the intended server address and repair/validate TLS with the DNS/Caddy operator; no DNS or Caddy changes were made here.
+## Release with one command
 
-`deploy/Caddyfile.site` and `deploy/open-web.service` are templates, not installed or production-validated. Before activation, establish a dedicated `open-web` user, `/var/lib/the-open-web` owned by it with mode 0700, `/etc/the-open-web.env` readable only by the service, and immutable versioned releases in `/opt/the-open-web/releases/`; point `current` at the chosen release. Install all dependencies on the build host, run the full pre-deployment checks, then install only production dependencies for the compiled server. The build copies migrations under `dist/database/migrations`; ship both `dist` and `apps/web/dist`, plus the package manifest and lockfile. Use an absolute DB_PATH. Set `ORIGIN=https://open.armsteel.dev`, `COOKIE_SECURE=true`, `WRITES_ENABLED=true`, `PORT=4322`, and a root-owned, service-readable `WRITE_GATE_PATH=/etc/the-open-web/writes-disabled` in a 0750 directory owned by `root:open-web` for an immediate write stop. The cooldown is fixed at 10 seconds. Test the gate before public access. Do not overwrite an existing directory or service.
-
-Inspect the actual Caddyfile and its trust-proxy configuration. Integrate the separate site block according to current conventions; validate the *complete* candidate configuration with `caddy validate` before a controlled reload. The site template overwrites both `X-Forwarded-For` and `X-Real-IP` with Caddy's `client_ip`; Fastify trusts forwarded IP attribution only from peer `127.0.0.1`, and the backend binds only to that loopback address. Do not pass client-supplied forwarding headers through unchanged or widen Fastify's trusted proxy range. If Cloudflare or another proxy is placed in front of Caddy, configure only its verified address ranges in Caddy's global `trusted_proxies` setting and verify `client_ip` using both legitimate and forged headers. Ensure Caddy can traverse and read the release. Validate HTTPS, health, WebSocket, cookie and two-visitor behaviour, plus existing sites immediately after activation. If any gate fails, stop; no production activation has been done.
-
-## Repeatable release procedure
-
-Run these checks from a clean checkout on Node 22.23.4 or later in the 22.x line. The Node 22 documentation still classifies `node:sqlite` as Experimental; this release candidate keeps it because the exact target runtime was exercised for migrations, concurrent writes, WAL backup/restore, crash recovery, compiled startup and shutdown. Pin and record the deployed Node patch, and rerun these checks whenever it changes. The database API is synchronous and must remain a single backend process. See the [Node 22.23.4 SQLite API documentation](https://nodejs.org/download/release/latest-jod/docs/api/sqlite.html).
+From the project checkout, commit the changes you intend to publish, then run:
 
 ```sh
-npm ci
-npm audit
-npm run lint
-npm run typecheck
-npm test
-npm run build
-CHROMIUM_PATH=/usr/bin/chromium npm run test:browser
-npm run test:production
-CHROMIUM_PATH=/usr/bin/chromium npm run test:built
-npm run test:load
+npm run release
 ```
 
-Use the actual Chromium executable path. Create a release directory named for the verified Git commit under `/opt/the-open-web/releases/`. Copy `dist/`, `apps/web/dist/`, `scripts/backup.mjs`, `scripts/test-production.mjs`, `package.json`, and `package-lock.json` into it, then run `npm ci --omit=dev --ignore-scripts --no-audit --no-fund` there and `npm run test:production`. The smoke test starts the compiled backend with a fresh disposable database and verifies a placement without touching the configured production database. It must pass before activation. Release files should be owned by a deployment account and readable/traversable by `open-web` and Caddy; only `/var/lib/the-open-web` is writable by the service. Confirm the configured absolute `DB_PATH` points there and the persistent directory is mode 0700.
+The command builds and checks the exact clean Git commit in a fresh temporary checkout. It runs dependency installation and audit, lint, type checking, unit tests, production build, browser checks, production dependency smoke test, isolated Caddy routing test, and the 500-visitor load check. It creates a checksummed package containing that build. Only after those steps pass does it request sudo for production activation. Enter the sudo password in the terminal when prompted.
 
-`npm run test:load` has no target-URL option; it always starts its own backend on loopback with a new disposable database and tests up to the configured 500-connection limit. Run it only on a development or release host with enough spare memory.
-
-Before switching, verify the previous `current` target, ensure sufficient approved backup space, and create a new backup using [BACKUPS.md](BACKUPS.md) when a database already exists. On first installation there is no database to back up and no previous release to roll back to; record that no prior target exists. Verify any backup and record its path. Migrations run transactionally before the backend starts listening. Change no database path or unrelated service. Prepare a temporary symlink and atomically rename it over `current`, then restart only `the-open-web`. Check the local health endpoint, HTTPS page, Secure session cookie, WebSocket state and a real placement through Caddy. If any post-activation check fails, switch `current` back to the recorded previous release when available, restart only this service, and recheck health. Check Caddy's configuration before its controlled reload only if its site block was changed; do not reload Caddy as part of application-only releases.
-
-Example activation after provisioning and review (replace the release ID and backup destination with approved values):
+Use the check-only form to run the complete verification and package the commit without changing production:
 
 ```sh
-set -eu
-release_id=COMMIT_SHA
-release=/opt/the-open-web/releases/$release_id
-previous=
-if [ -L /opt/the-open-web/current ]; then previous=$(readlink -f /opt/the-open-web/current); fi
-if [ -f /var/lib/the-open-web/open-web.sqlite ]; then node "$release/scripts/backup.mjs" /var/lib/the-open-web/open-web.sqlite /approved/backup/path/open-web-TIMESTAMP.sqlite; fi
-ln -s "$release" /opt/the-open-web/.current.next
-mv -Tf /opt/the-open-web/.current.next /opt/the-open-web/current
-systemctl restart the-open-web
-curl --fail --silent http://127.0.0.1:4322/api/health
-curl --fail --silent --show-error https://open.armsteel.dev/api/health
+npm run release -- --check-only
 ```
 
-For code rollback, atomically switch `current` to the recorded previous immutable release and restart only `the-open-web`; this option is available after the first successful activation. Do not restore a database automatically. Code rollback does not reverse migrations and never removes newer pixel writes. Each migration must be reviewed for backward compatibility before release; when the preceding binary cannot read a migrated schema, keep the service stopped or roll forward with a fix. Restore a verified backup only as an explicit data-loss recovery decision, after preserving the current database and its WAL/SHM files.
+The command stops before touching production if the checkout is dirty, required tools are missing, memory pressure is high, a check fails, the service is unhealthy, or the backup destination is not safe. Chromium is detected automatically; set `CHROMIUM_PATH` only if it is installed in a nonstandard location.
+
+To choose a different approved backup directory:
 
 ```sh
-ln -s "$previous" /opt/the-open-web/.current.rollback
-mv -Tf /opt/the-open-web/.current.rollback /opt/the-open-web/current
-systemctl restart the-open-web
-curl --fail --silent http://127.0.0.1:4322/api/health
-curl --fail --silent --show-error https://open.armsteel.dev/api/health
+npm run release -- --backup-dir /absolute/path/to/private-backup-directory
 ```
 
-## Emergency write shutdown
+The default is `/mnt/continental-cloud/backups/the-open-web`. The activation step checks that the directory exists, is root-owned and private, has enough free space, and is on a different mounted device from the live database. It verifies the SQLite online backup before changing the active release.
 
-Create the configured flag as a root-owned file readable by the service:
+## What activation checks
+
+The privileged activation helper reads `PORT` and `DB_PATH` from the running service, checks local and public health before deployment, installs only production dependencies into a staged release, and runs the compiled production smoke test against a disposable database. It makes the release readable to the service and Caddy, then removes write permission. It backs up the active SQLite database, atomically switches `/opt/the-open-web/current`, and restarts only `the-open-web`.
+
+Readiness checks poll for up to 60 seconds after restart. They require a healthy local and public API, a public release manifest that matches the full commit ID, a numeric cooldown duration from the session API, and the expected wall controls in the public page. If activation fails after switching, the helper restores the prior symlink, restarts the prior release, and checks health again. It retains the verified backup. Deployment and rollback share a lock so they cannot run at the same time.
+
+The exact production hostname is `https://open.armsteel.dev`; Caddy forwards API requests to loopback port `4323`. The activation script reads the actual configured port and database path from the running service rather than assuming either value. Application-only releases do not reload Caddy.
+
+## Code rollback
+
+The activation helper records the previous immutable release. To switch back to it:
 
 ```sh
-install -o root -g open-web -m 0640 /dev/null /etc/the-open-web/writes-disabled
+npm run rollback
 ```
 
-Writes stop on the next mutating request across HTTP mutation routes; the WebSocket is read-only and does not accept client messages. Confirm by attempting an authorized test placement and observing HTTP 503. To re-enable, remove only that flag after resolving the incident, check `/api/health`, then make and verify one placement. If the flag's parent cannot be read, writes fail closed. Alternatively set `WRITES_ENABLED=false` in the environment file and restart only this service.
+This asks for sudo, atomically changes `current`, restarts only the app, and checks health. If the rollback release fails readiness, it restores the release that was active before the rollback. Code rollback does not restore or replace the database. Schema changes must remain compatible with the preceding release; restoring a database is a separate recovery decision described in [BACKUPS.md](BACKUPS.md).
 
-No production DNS, systemd unit, data directory, Caddy configuration or public deployment was changed or validated in place during release preparation. Domain/DNS, privileged host provisioning, final live Caddy integration, physical-device checks, and manual screen-reader checks remain acceptance steps. Browser emulation and axe WCAG 2.1 A/AA checks passed; they do not replace those manual checks.
+## Current production record
+
+As verified on 2026-11-10, production runs commit `5c7fc8458aa1edbdc512691d9553cf8f2f197b56` from `/opt/the-open-web/releases/5c7fc8458aa1edbdc512691d9553cf8f2f197b56`. The service uses `/var/lib/the-open-web/open-web.sqlite` and port `4323`. The verified pre-release database backup is `/mnt/continental-cloud/backups/the-open-web/open-web-before-5c7fc84.sqlite`, on the separate HDD mounted at `/mnt/continental-cloud`.
+
+This checkout deploys locally to the host where the command runs. It does not push to a remote repository or depend on CI. Release evidence is the full commit ID printed by the command and its public manifest after activation. Keep the release and rollback commands on the same host as the production service.
+
+## Host configuration contract
+
+The production layout is `/opt/the-open-web/releases/<full-commit>/`, with `/opt/the-open-web/current` as an atomic symlink to one release. The `the-open-web` systemd service runs as `open-web` and reads `/etc/the-open-web.env`; the database lives under `/var/lib/the-open-web/`. Releases are root-owned and immutable to the service. Only application code is changed during a code release; the persistent database, service configuration, DNS, and Caddy configuration are preserved.
+
+The live Caddy site serves `/opt/the-open-web/current/apps/web/dist` and proxies `/api/*` to `127.0.0.1:4323`. The checked-in Caddy template reflects that route. Validate the complete host Caddy configuration before changing site configuration, and reload Caddy only for a Caddy change. Do not copy a partial site file over the host configuration.
+
+For an incident, inspect `systemctl status the-open-web`, `journalctl -u the-open-web`, the printed release ID and backup path, and the public health endpoint. Do not restore a database automatically during code rollback; a restore can discard writes made after the snapshot.
