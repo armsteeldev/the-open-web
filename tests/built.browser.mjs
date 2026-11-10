@@ -1,15 +1,88 @@
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
-const base=process.env.OPEN_WEB_TEST_URL;if(!base)throw Error('Set OPEN_WEB_TEST_URL to an isolated test instance');
-const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH});
-try {const context=await browser.newContext({viewport:{width:1000,height:700},ignoreHTTPSErrors:true});const p=await context.newPage();const errors=[];p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});const redirect=await p.request.get(base+'/',{maxRedirects:0});assert.equal(redirect.status(),302);assert.equal(redirect.headers().location,'/wall/');const wallRedirect=await p.request.get(base+'/wall',{maxRedirects:0});assert.equal(wallRedirect.status(),308);assert.equal(wallRedirect.headers().location,'/wall/');const response=await p.goto(base+'/wall/');assert.match(response.headers()['content-security-policy'],/default-src 'self'/);await p.getByText('Ready',{exact:true}).waitFor({timeout:15000});const paletteBox=await p.locator('#palette').boundingBox(),toolsBox=await p.locator('.tools').boundingBox();assert.ok(paletteBox&&paletteBox.x>=0&&paletteBox.y+paletteBox.height<=700);assert.ok(toolsBox&&toolsBox.x>=0&&toolsBox.x+toolsBox.width<=1000);const cookie=(await context.cookies()).find(c=>c.name==='ow_id');assert.ok(cookie?.secure&&cookie.httpOnly&&cookie.sameSite==='Strict');await p.locator('[data-color="4"]').click();const placed=p.waitForResponse(r=>r.url().endsWith('/api/wall/pixel')&&r.request().method()==='POST');await p.locator('canvas').click({position:{x:504,y:354}});assert.equal((await placed).status(),200);await p.locator('.global-menu > summary').click();assert.equal(await p.getByText('The Open Web',{exact:true}).isVisible(),true);
- const visitors=await Promise.all(Array.from({length:13},async()=>{const visitor=await browser.newContext({ignoreHTTPSErrors:true});const page=await visitor.newPage();const session=await page.request.get(base+'/api/session');assert.equal(session.status(),200);return {visitor,page};}));
- const writes=await Promise.all(visitors.map(({page},i)=>page.request.post(base+'/api/wall/pixel',{headers:{origin:new URL(base).origin,'x-forwarded-for':`198.51.100.${i+1}`,'x-real-ip':`203.0.113.${i+1}`,'content-type':'application/json'},data:JSON.stringify({x:100+i,y:100,color:2})})));
- assert.equal(writes.filter(r=>r.status()===200).length,12);assert.equal(writes.filter(r=>r.status()===429).length,1);await Promise.all(visitors.map(({visitor})=>visitor.close()));
- assert.deepEqual(errors,[]);
- if(process.env.OPEN_WEB_SCREENSHOT){
-  const layout=await p.evaluate(()=>({viewport:[innerWidth,innerHeight],palette:document.querySelector('#palette').getBoundingClientRect().toJSON(),tools:document.querySelector('.tools').getBoundingClientRect().toJSON(),menuOpen:document.querySelector('.global-menu[data-top-disclosure]').open}));
-  console.log(JSON.stringify(layout));
-  await p.screenshot({path:process.env.OPEN_WEB_SCREENSHOT});
- }
- console.log('PASS compiled app over isolated HTTPS Caddy: CSP, Secure cookie, WSS, routing, menu, and spoofed proxy-header rejection');}finally{await browser.close();}
+
+const base = process.env.OPEN_WEB_TEST_URL;
+if (!base) throw Error('Set OPEN_WEB_TEST_URL to an isolated test instance');
+
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
+try {
+  const context = await browser.newContext({ viewport: { width: 1000, height: 700 }, ignoreHTTPSErrors: true });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+
+  const redirect = await page.request.get(`${base}/`, { maxRedirects: 0 });
+  assert.equal(redirect.status(), 302);
+  assert.equal(redirect.headers().location, '/wall/');
+  const wallRedirect = await page.request.get(`${base}/wall`, { maxRedirects: 0 });
+  assert.equal(wallRedirect.status(), 308);
+  assert.equal(wallRedirect.headers().location, '/wall/');
+
+  const response = await page.goto(`${base}/wall/`);
+  assert.match(response.headers()['content-security-policy'], /default-src 'self'/);
+  await page.getByText('Ready', { exact: true }).waitFor({ timeout: 15000 });
+  const paletteBox = await page.locator('#palette').boundingBox();
+  const toolsBox = await page.locator('.tools').boundingBox();
+  assert.ok(paletteBox && paletteBox.x >= 0 && paletteBox.y + paletteBox.height <= 700);
+  assert.ok(toolsBox && toolsBox.x >= 0 && toolsBox.x + toolsBox.width <= 1000);
+  const cookie = (await context.cookies()).find(item => item.name === 'ow_id');
+  assert.ok(cookie?.secure && cookie.httpOnly && cookie.sameSite === 'Strict');
+
+  await page.locator('.global-menu > summary').click();
+  assert.equal(await page.getByText('The Open Web', { exact: true }).isVisible(), true);
+
+  // Exercise a fresh 12-token network budget. No earlier UI placement should
+  // consume a token, and the limits remain the same as production.
+  const visitors = await Promise.all(Array.from({ length: 13 }, async () => {
+    const visitor = await browser.newContext({ ignoreHTTPSErrors: true });
+    const visitorPage = await visitor.newPage();
+    const session = await visitorPage.request.get(`${base}/api/session`);
+    assert.equal(session.status(), 200);
+    return { visitor, page: visitorPage };
+  }));
+  const writes = await Promise.all(visitors.map(({ page: visitorPage }, index) => visitorPage.request.post(`${base}/api/wall/pixel`, {
+    headers: {
+      origin: new URL(base).origin,
+      'x-forwarded-for': `198.51.100.${index + 1}`,
+      'x-real-ip': `203.0.113.${index + 1}`,
+      'content-type': 'application/json',
+    },
+    data: JSON.stringify({ x: 100 + index, y: 100, color: 2 }),
+  })));
+  assert.equal(writes.filter(result => result.status() === 200).length, 12);
+  const limited = writes.filter(result => result.status() === 429);
+  assert.equal(limited.length, 1);
+  const retryAfterValues = await Promise.all(limited.map(async result => {
+    const body = await result.json();
+    assert.equal(body.ok, false);
+    assert.ok(Number.isFinite(body.retryAfterMs) && body.retryAfterMs > 0);
+    return body.retryAfterMs;
+  }));
+  await Promise.all(visitors.map(({ visitor }) => visitor.close()));
+
+  // The rate limiter refills at one token per second; wait for that next token
+  // before checking the independent UI placement path.
+  await page.waitForTimeout(Math.max(...retryAfterValues) + 50);
+  await page.locator('[data-color="4"]').click();
+  const placed = page.waitForResponse(result => result.url().endsWith('/api/wall/pixel') && result.request().method() === 'POST');
+  await page.locator('canvas').click({ position: { x: 504, y: 354 } });
+  assert.equal((await placed).status(), 200);
+
+  assert.deepEqual(errors, []);
+  if (process.env.OPEN_WEB_SCREENSHOT) {
+    const layout = await page.evaluate(() => ({
+      viewport: [innerWidth, innerHeight],
+      palette: document.querySelector('#palette').getBoundingClientRect().toJSON(),
+      tools: document.querySelector('.tools').getBoundingClientRect().toJSON(),
+      menuOpen: document.querySelector('.global-menu[data-top-disclosure]').open,
+    }));
+    console.log(JSON.stringify(layout));
+    await page.screenshot({ path: process.env.OPEN_WEB_SCREENSHOT });
+  }
+  console.log('PASS compiled app over isolated HTTPS Caddy: CSP, Secure cookie, WSS, routing, menu, spoofed proxy-header rejection');
+} finally {
+  await browser.close();
+}

@@ -13,7 +13,7 @@ test('SIGTERM closes live connections and preserves committed pixels across rest
  const start=()=>spawn(process.execPath,['--import','tsx','apps/server/src/index.ts'],{env:{...process.env,DB_PATH:join(dir,'db'),PORT:String(port),ORIGIN:origin},stdio:'ignore'});
  try {child=start();await ready(base,child);const ws=new WebSocket(`ws://127.0.0.1:${port}/api/events?space=wall`,{origin});await new Promise<void>((resolve,reject)=>{ws.once('open',()=>resolve());ws.once('error',reject);});
  const session=await fetch(base+'/api/session');const cookie=session.headers.get('set-cookie')!;const res=await fetch(base+'/api/wall/pixel',{method:'POST',headers:{cookie,origin,'content-type':'application/json'},body:JSON.stringify({x:1,y:2,color:4})});assert.equal(res.status,200);
- const ended=new Promise<number|null>(resolve=>child!.once('exit',resolve));child.kill('SIGTERM');assert.equal(await Promise.race([ended,new Promise<never>((_,reject)=>setTimeout(()=>reject(Error('shutdown timeout')),5000))]),0);
+ const ended=new Promise<number|null>(resolve=>child!.once('exit',resolve));child.kill('SIGTERM');let timeout:NodeJS.Timeout|undefined;const result=await Promise.race([ended,new Promise<never>((_,reject)=>{timeout=setTimeout(()=>reject(Error('shutdown timeout')),5000);})]).finally(()=>clearTimeout(timeout));assert.equal(result,0);
  child=start();await ready(base,child);const tile=new Uint8Array(await (await fetch(base+'/api/wall/tile/0/0')).arrayBuffer());assert.equal(tile[201],4);
  }finally{if(child && child.exitCode===null){const ended=new Promise(resolve=>child!.once('exit',resolve));child.kill('SIGTERM');await ended;}rmSync(dir,{recursive:true,force:true});}
 });
