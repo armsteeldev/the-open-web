@@ -22,7 +22,7 @@ try {
     await page.locator('#messages').getByText(sampleMessage,{exact:true}).waitFor();
     const populated=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     assert.deepEqual(populated.violations.map(v=>({id:v.id,impact:v.impact,help:v.help,nodes:v.nodes.map(n=>n.target)})),[]);
-    await page.getByRole('button',{name:/Change$/}).click();
+    await page.getByRole('button',{name:/Change nickname$/}).click();
     const editor=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     assert.deepEqual(editor.violations.map(v=>({id:v.id,impact:v.impact,help:v.help,nodes:v.nodes.map(n=>n.target)})),[]);
     await page.keyboard.press('Escape');

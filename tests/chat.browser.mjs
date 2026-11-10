@@ -47,7 +47,7 @@ try {
   await page.addStyleTag({ content: 'astro-dev-toolbar{display:none!important}' });
   await page.getByText('Connected', { exact: true }).waitFor();
   assert.match(await page.locator('#identity-label').textContent(), /^Anonymous\d{9}$/);
-  assert.match(await page.locator('#empty-state .empty-title').textContent(), /quiet/i);
+  assert.equal(await page.locator('#empty-state').textContent(), 'No messages yet.');
   await screenshot(page, 'desktop-empty.png');
   const stableIdentity = await page.locator('#identity-label').textContent();
   await page.reload();
@@ -64,7 +64,7 @@ try {
   await emptyMobile.getByText('Connected', { exact: true }).waitFor();
   await screenshot(emptyMobile, 'mobile-empty.png');
   const mobileMenuBox = await emptyMobile.locator('.global-menu').boundingBox();
-  const mobileRoomBox = await emptyMobile.locator('.chat-room').boundingBox();
+  const mobileRoomBox = await emptyMobile.locator('.chat-header').boundingBox();
   assert.ok(mobileMenuBox && mobileRoomBox && mobileMenuBox.y >= 0 && mobileMenuBox.y + mobileMenuBox.height <= mobileRoomBox.y, 'the shared spaces menu stays visible above the mobile chat room');
 
   const raceContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
@@ -109,7 +109,7 @@ try {
 
   const menu = page.locator('.global-menu');
   const menuBox = await menu.boundingBox();
-  const roomBox = await page.locator('.chat-room').boundingBox();
+  const roomBox = await page.locator('.chat-header').boundingBox();
   assert.ok(menuBox && roomBox && menuBox.y >= 0 && menuBox.y + menuBox.height <= roomBox.y, 'the shared spaces menu stays visible above the chat room');
   await page.getByLabel('Spaces', { exact: true }).first().click();
   assert.equal(await menu.locator('a').count(), 2);
@@ -120,7 +120,7 @@ try {
   await page.locator('#nickname-dialog').waitFor({ state: 'visible' });
   await screenshot(page, 'desktop-nickname-editor.png');
   await page.locator('#nickname').fill('<img src=x>');
-  await page.getByRole('button', { name: 'Save nickname' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   assert.match(await page.locator('#identity-label').textContent(), /^<img src=x> · #\d{3} \d{3} \d{3}$/);
   assert.equal(await page.locator('.message .nickname').first().textContent(), 'Load visitor');
   await page.getByLabel('Message', { exact: true }).fill('<script>window.chatInjected=true</script>');
@@ -229,6 +229,8 @@ try {
 
   await region.evaluate(element => { element.scrollTop = 0; });
   const disconnectedScroll = await region.evaluate(element => element.scrollTop);
+  const readingAnchor = region.locator('.message').first();
+  const disconnectedAnchorTop = await readingAnchor.evaluate(element => element.getBoundingClientRect().top - element.closest('#message-region').getBoundingClientRect().top);
   await readerContext.setOffline(true);
   await reader.evaluate(() => window.__testSockets.at(-1)?.close(4000, 'isolated reconnect check'));
   await reader.getByText(/Disconnected|reconnecting/i).waitFor({ timeout: 10_000 });
@@ -238,7 +240,9 @@ try {
   await reader.getByText('Connected', { exact: true }).waitFor({ timeout: 20_000 });
   await reader.getByText('Sent while this browser was disconnected', { exact: true }).waitFor();
   await reader.getByRole('button', { name: /Return to newest messages/ }).waitFor();
-  assert.ok(Math.abs((await region.evaluate(element => element.scrollTop)) - disconnectedScroll) <= 2);
+  const recoveredScroll = await region.evaluate(element => element.scrollTop);
+  const recoveredAnchorTop = await readingAnchor.evaluate(element => element.getBoundingClientRect().top - element.closest('#message-region').getBoundingClientRect().top);
+  assert.ok(Math.abs(recoveredAnchorTop - disconnectedAnchorTop) <= 2, JSON.stringify({ disconnectedScroll, recoveredScroll, disconnectedAnchorTop, recoveredAnchorTop }));
 
   await reader.setViewportSize({ width: 320, height: 640 });
   await reader.waitForFunction(() => Math.abs(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--chat-viewport-height')) - (visualViewport?.height ?? innerHeight)) < 1);

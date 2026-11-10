@@ -32,8 +32,6 @@ interface HistorySnapshot {
 const region = document.querySelector<HTMLElement>('#message-region')!;
 const list = document.querySelector<HTMLOListElement>('#messages')!;
 const emptyState = document.querySelector<HTMLElement>('#empty-state')!;
-const emptyTitle = emptyState.querySelector<HTMLElement>('.empty-title')!;
-const emptyNote = emptyState.querySelector<HTMLElement>('.empty-note')!;
 const newestButton = document.querySelector<HTMLButtonElement>('#newest')!;
 const connectionStatus = document.querySelector<HTMLElement>('#connection-status')!;
 const composer = document.querySelector<HTMLFormElement>('#composer')!;
@@ -96,8 +94,10 @@ function identityText(nickname: string, id = anonymousId): string {
 }
 
 function renderIdentity(): void {
-  identityLabel.textContent = identityText(currentNickname);
+  const label = identityText(currentNickname);
+  identityLabel.textContent = label;
   identityLabel.dataset.kind = currentNickname ? 'nickname' : 'anonymous';
+  identityButton.setAttribute('aria-label', `${label}. Change nickname`);
 }
 
 function setConnection(text: string, state: 'connecting' | 'synchronizing' | 'connected' | 'reconnecting' | 'disconnected'): void {
@@ -119,8 +119,7 @@ function setFeedback(text: string, state: '' | 'pending' | 'success' | 'error' |
 function updateEmptyState(): void {
   emptyState.hidden = messages.size > 0;
   if (messages.size > 0) return;
-  emptyTitle.textContent = historyReady ? 'It’s quiet in here.' : 'Opening the room…';
-  emptyNote.textContent = historyReady ? 'Your message will start the conversation.' : 'Recent messages will appear here.';
+  emptyState.textContent = historyReady ? 'No messages yet.' : 'Loading messages…';
 }
 
 function atBottom(): boolean {
@@ -410,7 +409,6 @@ function closeNicknameEditor(): void {
 }
 
 identityButton.addEventListener('click', openNicknameEditor);
-document.querySelector<HTMLButtonElement>('#nickname-close')!.addEventListener('click', closeNicknameEditor);
 document.querySelector<HTMLButtonElement>('#nickname-cancel')!.addEventListener('click', closeNicknameEditor);
 nicknameDialog.addEventListener('close', () => identityButton.focus());
 
