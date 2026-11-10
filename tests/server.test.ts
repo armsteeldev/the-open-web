@@ -9,12 +9,12 @@ const origin='http://localhost:4321';
 test('identity, validation, cooldown, overwrite, broadcast and restart persistence',async()=>{
  const dir=mkdtempSync(join(tmpdir(),'open-web-'));const path=join(dir,'db');let app=await createApp({dbPath:path,origin,cooldown:10000,writes:true,secure:false});
  try {await app.listen({port:0,host:'127.0.0.1'});const port=(app.server.address() as {port:number}).port;
- const session=await app.inject({url:'/api/session'});const cookie=session.headers['set-cookie'] as string;assert.match(cookie,/HttpOnly/);const cookie2=(await app.inject({url:'/api/session'})).headers['set-cookie'] as string;
+ const session=await app.inject({url:'/api/session'});const cookie=session.headers['set-cookie'] as string;assert.match(cookie,/HttpOnly/);assert.equal(session.json().retryAfterMs,0);const cookie2=(await app.inject({url:'/api/session'})).headers['set-cookie'] as string;
  const ws=new WebSocket(`ws://127.0.0.1:${port}/api/events?space=wall`,{origin});await new Promise<void>((resolve,reject)=>{ws.once('open',()=>resolve());ws.once('error',reject);});const event=new Promise<string>(resolve=>ws.once('message',data=>resolve(data.toString())));
  const post=(c:string,body:Record<string,number>)=>app.inject({method:'POST',url:'/api/wall/pixel',headers:{cookie:c,origin},payload:body});
  assert.equal((await post(cookie,{x:-1,y:0,color:0})).statusCode,400);assert.equal((await post(cookie,{x:0,y:0,color:16})).statusCode,400);
- assert.equal((await post(cookie,{x:3,y:4,color:2})).statusCode,200);assert.equal(JSON.parse(await event).color,2);
- assert.equal((await post(cookie,{x:3,y:4,color:3})).statusCode,429);assert.equal((await post(cookie2,{x:3,y:4,color:3})).statusCode,200);
+ const placed=await post(cookie,{x:3,y:4,color:2});assert.equal(placed.statusCode,200);assert.ok(placed.json().retryAfterMs>0&&placed.json().retryAfterMs<=10000);assert.equal(JSON.parse(await event).color,2);
+ const denied=await post(cookie,{x:3,y:4,color:3});assert.equal(denied.statusCode,429);assert.ok(denied.json().retryAfterMs>0&&denied.json().retryAfterMs<=10000);assert.equal((await post(cookie2,{x:3,y:4,color:3})).statusCode,200);
  assert.equal((await app.inject({method:'POST',url:'/api/wall/pixel',headers:{cookie,origin:'https://evil.example'},payload:{x:1,y:1,color:1}})).statusCode,403);
  ws.terminate();await app.close();app=await createApp({dbPath:path,origin,cooldown:10000,writes:true,secure:false});const tile=await app.inject({url:'/api/wall/tile/0/0'});assert.equal(tile.rawPayload[403],3);assert.equal((await post(cookie,{x:5,y:4,color:1})).statusCode,429);
  }finally{await app.close();rmSync(dir,{recursive:true,force:true});}

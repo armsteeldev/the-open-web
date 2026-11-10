@@ -5,7 +5,7 @@ const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH});
 try {
  for(const viewport of [{width:1000,height:700},{width:320,height:640}]) {
   const context=await browser.newContext({viewport,hasTouch:viewport.width<500}); const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(base+'/wall');const menu=page.locator('[data-global-menu]'),trigger=page.getByLabel('Spaces',{exact:true}).first(),panel=page.locator('#global-menu-panel');
+  await page.goto(base+'/wall');const menu=page.locator('.global-menu[data-top-disclosure]'),trigger=page.getByLabel('Spaces',{exact:true}).first(),panel=page.locator('#global-menu-panel');
   assert.equal(await menu.evaluate(e=>e.open),false);await trigger.click();assert.equal(await menu.evaluate(e=>e.open),true);
   assert.equal(await page.getByText('The Open Web',{exact:true}).isVisible(),true);assert.equal(await panel.locator('img').count(),0);assert.equal(await panel.getByText('A project by Armsteel').count(),0);
   assert.equal(await panel.getByRole('link',{name:'The Wall'}).getAttribute('aria-current'),'page');const rect=await panel.boundingBox();assert.ok(rect.x>=0&&rect.x+rect.width<=viewport.width);

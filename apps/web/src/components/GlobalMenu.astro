@@ -2,8 +2,8 @@
 import { spaces } from '../../../../packages/shared/spaces';
 const current = Astro.url.pathname.replace(/\/+$/, '') || '/';
 ---
-<details class="global-menu" data-global-menu>
-  <summary aria-label="Spaces" aria-controls="global-menu-panel">☰</summary>
+<details class="top-disclosure global-menu" data-top-disclosure>
+  <summary aria-label="Spaces" aria-controls="global-menu-panel" title="Spaces">☰</summary>
   <div class="menu-panel" id="global-menu-panel">
     <div class="menu-label">The Open Web</div>
     <nav aria-label="Spaces">
@@ -12,29 +12,48 @@ const current = Astro.url.pathname.replace(/\/+$/, '') || '/';
   </div>
 </details>
 <script>
-  document.querySelectorAll<HTMLDetailsElement>('[data-global-menu]').forEach(menu => {
-    const trigger = menu.querySelector<HTMLElement>('summary')!;
-    document.addEventListener('pointerdown', event => {
-      if (!menu.open || menu.contains(event.target as Node)) return;
-      menu.open = false;
-      // The dismissing tap must not also place or drag a canvas pixel.
-      if (event.target instanceof HTMLCanvasElement) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      }
-    }, true);
-    document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && menu.open) { menu.open = false; trigger.focus(); }
+  const disclosures = [...document.querySelectorAll<HTMLDetailsElement>('[data-top-disclosure]')];
+  const closeOthers = (current?: HTMLDetailsElement) => {
+    disclosures.forEach(disclosure => {
+      if (disclosure !== current) disclosure.open = false;
     });
-    menu.querySelectorAll('a').forEach(link => link.addEventListener('click', () => { menu.open = false; }));
-    window.addEventListener('pageshow', () => { menu.open = false; });
+  };
+
+  disclosures.forEach(disclosure => {
+    disclosure.addEventListener('toggle', () => {
+      if (disclosure.open) closeOthers(disclosure);
+    });
+    disclosure.querySelectorAll('a').forEach(link => link.addEventListener('click', () => { disclosure.open = false; }));
   });
+
+  document.addEventListener('pointerdown', event => {
+    const target = event.target as Element | null;
+    const inside = target?.closest('[data-top-disclosure]') as HTMLDetailsElement | null;
+    const hadOpenDisclosure = disclosures.some(disclosure => disclosure.open);
+    closeOthers(inside ?? undefined);
+    // The dismissing tap must not also place or drag a canvas pixel.
+    if (hadOpenDisclosure && !inside && target instanceof HTMLCanvasElement) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    const open = disclosures.find(disclosure => disclosure.open);
+    if (!open) return;
+    open.open = false;
+    open.querySelector<HTMLElement>('summary')?.focus();
+  });
+
+  window.addEventListener('pageshow', () => closeOthers());
 </script>
-<style>
-  .global-menu { position: relative; }
-  summary { list-style: none; display: grid; place-items: center; }
-  summary::-webkit-details-marker { display: none; }
-  .menu-panel { position: absolute; top: calc(100% + 3px); left: 0; width: min(150px, calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right))); background: #fafafa; border: 1px solid #aaa; color: #333; }
+<style is:global>
+  .top-disclosure { position: relative; }
+  .top-disclosure > summary { list-style: none; display: grid; place-items: center; }
+  .top-disclosure > summary::-webkit-details-marker { display: none; }
+  .menu-panel { position: absolute; top: calc(100% + 3px); left: 0; width: min(180px, calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right))); background: #fafafa; border: 1px solid #aaa; color: #333; box-shadow: 0 2px 8px #0002; }
+  .help-disclosure .menu-panel { left: auto; right: 0; padding: 8px; }
   .menu-label { padding: 7px 9px 3px; color: #666; }
   nav { padding: 2px 4px 4px; }
   nav a { display: block; color: inherit; text-decoration: none; padding: 6px; }
