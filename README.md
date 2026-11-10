@@ -8,4 +8,4 @@ Requires Node 22.23.4–22.x and npm 9.6.5 or later. `npm ci`, `mkdir -p data`, 
 
 Keyboard users can focus the Wall, move the selection with arrow keys (Shift moves ten pixels), and place with Enter or Space.
 
-Production is deployed at [open.armsteel.dev](https://open.armsteel.dev). See [deployment](docs/DEPLOYMENT.md) for the verified release record and release procedure, plus [architecture](docs/ARCHITECTURE.md), [design](docs/DESIGN-PRINCIPLES.md), and [operations](docs/OPERATIONS.md).
+Production is deployed at [open.armsteel.dev](https://open.armsteel.dev). See [Adding a space](docs/ADDING-A-SPACE.md) for the practical implementation guide, [architecture](docs/ARCHITECTURE.md) for shared boundaries, and [deployment](docs/DEPLOYMENT.md) for release and recovery gates. Identity, realtime, database, design, and operational conventions are documented under `docs/`.

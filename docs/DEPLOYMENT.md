@@ -16,7 +16,7 @@ Use the check-only form to run the complete verification and package the commit 
 npm run release -- --check-only
 ```
 
-The command stops before touching production if the checkout is dirty, required tools are missing, memory pressure is high, a check fails, the service is unhealthy, or the backup destination is not safe. Chromium is detected automatically; set `CHROMIUM_PATH` only if it is installed in a nonstandard location.
+The check-only command verifies and packages the commit without contacting the production service or changing production. The activation path in `npm run release` then checks host health, service configuration, backup-device separation, backup-directory ownership and permissions, available space, and the fresh SQLite backup before switching releases. Chromium is detected automatically; set `CHROMIUM_PATH` only if it is installed in a nonstandard location.
 
 To choose a different approved backup directory:
 
@@ -44,11 +44,11 @@ npm run rollback
 
 This asks for sudo, atomically changes `current`, restarts only the app, and checks health. If the rollback release fails readiness, it restores the release that was active before the rollback. Code rollback does not restore or replace the database. Schema changes must remain compatible with the preceding release; restoring a database is a separate recovery decision described in [BACKUPS.md](BACKUPS.md).
 
-## Current production record
+## Production baseline checked for the multi-space foundation
 
-As verified on 2026-11-10, production runs commit `5c7fc8458aa1edbdc512691d9553cf8f2f197b56` from `/opt/the-open-web/releases/5c7fc8458aa1edbdc512691d9553cf8f2f197b56`. The service uses `/var/lib/the-open-web/open-web.sqlite` and port `4323`. The verified pre-release database backup is `/mnt/continental-cloud/backups/the-open-web/open-web-before-5c7fc84.sqlite`, on the separate HDD mounted at `/mnt/continental-cloud`.
+At the start of this work on 2026-11-10, the Ubuntu 24.04 production host was running the supplied baseline commit `f43cccde2ee4f75a6e110af35cfd7fa2ac0fe335`. `/opt/the-open-web/current` resolved to that immutable release, the public `/release.json` matched it, and local and public health checks passed. The service answered on port `4323`. The approved backup directory exists on the mounted HDD at `/mnt/continental-cloud`; activation verifies that device against the actual database path and creates a fresh backup before every release.
 
-This checkout deploys locally to the host where the command runs. It does not push to a remote repository or depend on CI. Release evidence is the full commit ID printed by the command and its public manifest after activation. Keep the release and rollback commands on the same host as the production service.
+This is the baseline for this foundation task, not a live release lookup. After a release, the full commit ID printed by the activation command and the public release manifest identify the running version. This checkout deploys locally to the host where the command runs; it does not push to a remote repository or depend on CI. Keep release and rollback commands on the production host.
 
 ## Host configuration contract
 

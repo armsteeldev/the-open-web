@@ -1,13 +1,14 @@
 ---
-import { spaces } from '../../../../packages/shared/spaces';
-const current = Astro.url.pathname.replace(/\/+$/, '') || '/';
+import { activeSpaces, spaceIsCurrentPath, spaces } from '../../../../packages/shared/spaces';
+const availableSpaces = activeSpaces(spaces);
+const current = Astro.url.pathname;
 ---
 <details class="top-disclosure global-menu" data-top-disclosure>
   <summary aria-label="Spaces" aria-controls="global-menu-panel" title="Spaces">☰</summary>
   <div class="menu-panel" id="global-menu-panel">
     <div class="menu-label">The Open Web</div>
     <nav aria-label="Spaces">
-      {spaces.map(space => <a href={space.path} aria-current={current === space.path.replace(/\/+$/, '') || current.startsWith(space.path.replace(/\/+$/, '') + '/') ? 'page' : undefined}>{space.label}</a>)}
+      {availableSpaces.map(space => <a href={space.path} aria-current={spaceIsCurrentPath(current, space.path) ? 'page' : undefined}>{space.label}</a>)}
     </nav>
   </div>
 </details>
@@ -49,15 +50,18 @@ const current = Astro.url.pathname.replace(/\/+$/, '') || '/';
   window.addEventListener('pageshow', () => closeOthers());
 </script>
 <style is:global>
+  .global-menu { position: fixed; z-index: 10; top: max(8px,env(safe-area-inset-top)); left: max(8px,env(safe-area-inset-left)); }
   .top-disclosure { position: relative; }
   .top-disclosure > summary { list-style: none; display: grid; place-items: center; }
   .top-disclosure > summary::-webkit-details-marker { display: none; }
-  .menu-panel { position: absolute; top: calc(100% + 3px); left: 0; width: min(180px, calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right))); background: #fafafa; border: 1px solid #aaa; color: #333; box-shadow: 0 2px 8px #0002; }
+  .global-menu > summary { font: inherit; color: var(--ow-text,#333); background: var(--ow-surface,#fafafa); border: 1px solid var(--ow-border,#aaa); border-radius: 2px; min-width: 30px; height: 30px; cursor: pointer; }
+  .global-menu > summary:focus-visible,.global-menu a:focus-visible { outline: 2px solid var(--ow-focus,#345ea7); outline-offset: 2px; }
+  .menu-panel { position: absolute; top: calc(100% + 3px); left: 0; width: min(180px, calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right))); background: var(--ow-surface,#fafafa); border: 1px solid var(--ow-border,#aaa); color: var(--ow-text,#333); box-shadow: 0 2px 8px #0002; }
   .help-disclosure .menu-panel { left: auto; right: 0; padding: 8px; }
-  .menu-label { padding: 7px 9px 3px; color: #666; }
-  nav { padding: 2px 4px 4px; }
-  nav a { display: block; color: inherit; text-decoration: none; padding: 6px; }
-  nav a:hover { background: #eee; }
-  nav a[aria-current="page"] { background: #e5e5e5; }
-  nav a:focus-visible { outline: 2px solid #345ea7; outline-offset: -2px; }
+  .menu-label { padding: 7px 9px 3px; color: var(--ow-muted,#666); }
+  .global-menu nav { padding: 2px 4px 4px; }
+  .global-menu nav a { display: block; color: inherit; text-decoration: none; padding: 6px; }
+  .global-menu nav a:hover { background: var(--ow-hover,#eee); }
+  .global-menu nav a[aria-current="page"] { background: var(--ow-active,#e5e5e5); }
+  .global-menu nav a:focus-visible { outline-offset: -2px; }
 </style>

@@ -2,7 +2,7 @@
 import { PALETTE, COLOR_NAMES } from '../../../../packages/shared/wall';
 import SpaceLayout from '../layouts/SpaceLayout.astro';
 ---
-<SpaceLayout title="The Wall — The Open Web">
+<SpaceLayout title="The Wall — The Open Web" layout="viewport">
 <canvas id="wall" tabindex="0" role="application" aria-label="Collaborative pixel wall" aria-describedby="wall-keyboard-help"></canvas>
 <p class="visually-hidden" id="wall-keyboard-help">Use arrow keys to move the selection, Shift and arrow keys to move ten pixels, and Enter or Space to place the selected colour.</p>
 <span class="visually-hidden" id="keyboard-position" role="status" aria-atomic="true"></span>

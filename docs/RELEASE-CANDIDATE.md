@@ -1,9 +1,9 @@
-# Wall release verification record
+# Release verification record
 
-The release process is now maintained in [DEPLOYMENT.md](DEPLOYMENT.md). Run `npm run release -- --check-only` to repeat the current full verification against a clean committed checkout; that command reports the exact commit it checked and does not change production.
+The automated release procedure is maintained in [DEPLOYMENT.md](DEPLOYMENT.md). Run `npm run release -- --check-only` against a clean commit for complete verification without changing production. The guarded activation through `npm run release` records the deployed commit and fresh backup path.
 
-## Production deployment — 2026-11-10
+## Production baseline checked — 2026-11-10
 
-Commit `5c7fc8458aa1edbdc512691d9553cf8f2f197b56` was activated at `/opt/the-open-web/releases/5c7fc8458aa1edbdc512691d9553cf8f2f197b56`. The service recovered after activation and public/local health checks passed. A verified SQLite backup was saved to `/mnt/continental-cloud/backups/the-open-web/open-web-before-5c7fc84.sqlite` on the separate HDD.
+Before the multi-space foundation changes, the production host's current symlink resolved to `f43cccde2ee4f75a6e110af35cfd7fa2ac0fe335`. The public release manifest matched, and local and public health checks succeeded. This replaced the older `5c7fc8458aa1edbdc512691d9553cf8f2f197b56` deployment note, which did not describe the live host at the time of this check.
 
-The public site was checked after release: desktop and mobile wall layout, initial coordinate display, status and palette, Spaces and Help controls, session cooldown duration, and browser console health. Future releases should use the automated procedure in `DEPLOYMENT.md`, which performs those release gates and polls readiness before considering activation successful.
+Any deployment of the foundation must be recorded here with the exact activated SHA, verified backup path, and post-activation public checks. A check-only result is not a deployment.

@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createApp } from '../apps/server/src/app.js';
-import { openDb, place } from '../apps/server/src/db.js';
+import { openDb } from '../apps/server/src/db.js';
+import { place } from '../apps/server/src/spaces/wall/database.js';
 test('online backup captures committed WAL, restores, and refuses overwrite',async()=>{
  const root=mkdtempSync(join(tmpdir(),'open-web-backup-'));const source=join(root,'live.sqlite'),destination=join(root,'backup.sqlite');const live=openDb(source);
  try {place(live,'visitor',3,4,5,1000,5000);

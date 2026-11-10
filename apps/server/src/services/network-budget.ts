@@ -1,7 +1,11 @@
 /** Process-local, bounded token bucket. Network addresses never reach disk or logs. */
 export class NetworkBudget {
  private readonly entries = new Map<string, {tokens:number, updated:number}>();
- constructor(private readonly capacity=12, private readonly refillMs=1000, private readonly maxEntries=10000) {}
+ constructor(private readonly capacity=12, private readonly refillMs=1000, private readonly maxEntries=10000) {
+  if(!Number.isSafeInteger(capacity)||capacity<1) throw new Error('Token bucket capacity must be a positive integer');
+  if(!Number.isSafeInteger(refillMs)||refillMs<1) throw new Error('Token bucket refill interval must be a positive integer');
+  if(!Number.isSafeInteger(maxEntries)||maxEntries<1) throw new Error('Token bucket entry bound must be a positive integer');
+ }
  private refill(entry:{tokens:number,updated:number}, now:number) {
   entry.tokens=Math.min(this.capacity,entry.tokens+Math.max(0,now-entry.updated)/this.refillMs);
   entry.updated=now;

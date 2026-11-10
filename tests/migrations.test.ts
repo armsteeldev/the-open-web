@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { openDb, place } from '../apps/server/src/db.js';
+import { openDb } from '../apps/server/src/db.js';
+import { place } from '../apps/server/src/spaces/wall/database.js';
 
 test('ordered migrations upgrade existing data and fail closed on newer schemas',()=>{
  const root=mkdtempSync(join(tmpdir(),'open-web-migrate-')); const path=join(root,'wall.sqlite'); const dir=join(root,'migrations'); mkdirSync(dir);
@@ -38,4 +39,26 @@ test('cooldown rows are indexed and expired identity digests are removed during 
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM visitor_cooldowns WHERE visitor=?').get('expired-visitor')!.count,0);
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM visitor_cooldowns WHERE visitor=?').get('active-visitor')!.count,1);
  } finally {db.close();rmSync(root,{recursive:true,force:true});}
+});
+
+test('a new space-owned migration is consecutive, transactional and leaves Wall tables intact',()=>{
+ const root=mkdtempSync(join(tmpdir(),'open-web-space-migration-'));const path=join(root,'space.sqlite');const dir=join(root,'migrations');mkdirSync(dir);
+ try {
+  for(const name of ['001_initial.sql','002_cooldown_retention.sql'])writeFileSync(join(dir,name),readFileSync(new URL(`../database/migrations/${name}`,import.meta.url)));
+  writeFileSync(join(dir,'003_module_fixture_records.sql'),'CREATE TABLE module_fixture_records (id INTEGER PRIMARY KEY, body TEXT NOT NULL) STRICT;');
+  let db=openDb(path,pathToFileURL(dir+'/'));
+  assert.deepEqual(db.prepare('SELECT version FROM migrations ORDER BY version').all().map(row=>row.version),[1,2,3]);
+  db.prepare('INSERT INTO module_fixture_records(body) VALUES (?)').run('kept');
+  assert.equal(db.prepare('SELECT body FROM module_fixture_records').get()!.body,'kept');
+  assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='wall_tiles'").get()!.name,'wall_tiles');
+  assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='visitor_cooldowns'").get()!.name,'visitor_cooldowns');
+  db.close();
+
+  writeFileSync(join(dir,'004_module_fixture_failed.sql'),'CREATE TABLE module_fixture_rollback (id INTEGER); INVALID SQL;');
+  assert.throws(()=>openDb(path,pathToFileURL(dir+'/')));
+  db=new DatabaseSync(path);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE name='module_fixture_rollback'").get()!.count,0);
+  assert.equal(db.prepare('SELECT MAX(version) AS version FROM migrations').get()!.version,3);
+  db.close();
+ }finally{rmSync(root,{recursive:true,force:true});}
 });

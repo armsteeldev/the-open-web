@@ -1,6 +1,16 @@
 import { isAbsolute } from 'node:path';
 export const PLACEMENT_COOLDOWN_MS=10000;
-export function readConfig(env:NodeJS.ProcessEnv) {
+export interface ServerConfig {
+ port:number;
+ dbPath:string;
+ origin:string;
+ cooldown:number;
+ writes:boolean;
+ secure:boolean;
+ writeGatePath?:string;
+}
+export type AppOptions=Omit<ServerConfig,'port'>;
+export function readConfig(env:NodeJS.ProcessEnv):ServerConfig {
  const bool=(name:string, fallback:boolean)=>{const value=env[name];if(value===undefined)return fallback;if(value==='true')return true;if(value==='false')return false;throw new Error(`${name} must be true or false`);};
  const port=Number(env.PORT ?? 4322),cooldown=PLACEMENT_COOLDOWN_MS;
  if(!Number.isInteger(port)||port<1||port>65535)throw new Error('PORT must be an integer between 1 and 65535');
