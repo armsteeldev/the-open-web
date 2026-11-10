@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WebSocket } from 'ws';
 import { performance } from 'node:perf_hooks';
+import { randomUUID } from 'node:crypto';
 
 async function freePort() {
   const server = createServer();
@@ -142,6 +143,62 @@ try {
       socket.close();
     })));
   }
+
+  const chatCount = 100;
+  const chatVisitors = await Promise.all(Array.from({ length: chatCount }, async () => {
+    const n = addressNumber++;
+    const address = `198.51.${100 + Math.floor(n / 254)}.${1 + n % 254}`;
+    const history = await fetch(`${base}/api/chat/history`, { headers: { 'x-forwarded-for': address } });
+    if (!history.ok) throw Error(`chat history failed for visitor: ${history.status}`);
+    const cookie = history.headers.get('set-cookie')?.split(';', 1)[0];
+    if (!cookie) throw Error('chat session cookie missing');
+    return { address, cookie };
+  }));
+  const received = Array.from({ length: chatCount }, () => new Set());
+  const chatSockets = await Promise.all(chatVisitors.map(async ({ address }, index) => {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/api/events?space=chat`, {
+      origin: base,
+      headers: { 'x-forwarded-for': address },
+    });
+    socket.on('message', data => {
+      const event = JSON.parse(data.toString());
+      if (event.space === 'chat' && event.type === 'message') received[index].add(event.id);
+    });
+    await opened(socket);
+    return socket;
+  }));
+  const chatStarted = performance.now();
+  const chatWrites = await Promise.all(chatVisitors.map(async ({ address, cookie }, index) => {
+    const started = performance.now();
+    const response = await fetch(`${base}/api/chat/messages`, {
+      method: 'POST',
+      headers: { cookie, origin: base, 'content-type': 'application/json', 'x-forwarded-for': address },
+      body: JSON.stringify({ requestId: randomUUID(), nickname: 'Load visitor', text: `chat-load-${index}` }),
+    });
+    return { status: response.status, elapsed: performance.now() - started };
+  }));
+  const chatDeadline = Date.now() + 10_000;
+  while (received.some(messages => messages.size < chatCount) && Date.now() < chatDeadline) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  if (chatWrites.some(write => write.status !== 200) || received.some(messages => messages.size !== chatCount)) {
+    throw Error(`chat load failed: statuses=${chatWrites.map(write => write.status).join(',')} deliveries=${received.map(messages => messages.size).join(',')}`);
+  }
+  console.log(JSON.stringify({
+    space: 'chat',
+    visitors: chatCount,
+    websocketConnections: chatSockets.length,
+    acceptedMessages: chatWrites.length,
+    receivedEvents: received.reduce((sum, messages) => sum + messages.size, 0),
+    messageResponseMs: { p50: percentile(chatWrites.map(write => write.elapsed), 0.5), p95: percentile(chatWrites.map(write => write.elapsed), 0.95), max: Number(Math.max(...chatWrites.map(write => write.elapsed)).toFixed(2)) },
+    allToAllBroadcastMs: Number((performance.now() - chatStarted).toFixed(2)),
+    backendRssMiB: Number((memoryKiB(server.pid) / 1024).toFixed(1)),
+    databaseMiB: databaseMiB(dbPath),
+  }));
+  await Promise.all(chatSockets.map(socket => new Promise(resolve => {
+    socket.once('close', resolve);
+    socket.close();
+  })));
 } catch (error) {
   if (server && logs) process.stderr.write(logs.slice(-3000));
   throw error;

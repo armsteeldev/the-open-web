@@ -20,6 +20,9 @@ try {
   const wallRedirect = await page.request.get(`${base}/wall`, { maxRedirects: 0 });
   assert.equal(wallRedirect.status(), 308);
   assert.equal(wallRedirect.headers().location, '/wall/');
+  const chatRedirect = await page.request.get(`${base}/chat`, { maxRedirects: 0 });
+  assert.equal(chatRedirect.status(), 308);
+  assert.equal(chatRedirect.headers().location, '/chat/');
 
   const response = await page.goto(`${base}/wall/`);
   assert.match(response.headers()['content-security-policy'], /default-src 'self'/);
@@ -33,7 +36,6 @@ try {
 
   await page.locator('.global-menu > summary').click();
   assert.equal(await page.getByText('The Open Web', { exact: true }).isVisible(), true);
-
   // Exercise a fresh 12-token network budget. No earlier UI placement should
   // consume a token, and the limits remain the same as production.
   const visitors = await Promise.all(Array.from({ length: 13 }, async () => {
@@ -70,6 +72,16 @@ try {
   const placed = page.waitForResponse(result => result.url().endsWith('/api/wall/pixel') && result.request().method() === 'POST');
   await page.locator('canvas').click({ position: { x: 504, y: 354 } });
   assert.equal((await placed).status(), 200);
+
+  await page.goto(`${base}/chat/`);
+  await page.getByText('Connected', { exact: true }).waitFor({ timeout: 15000 });
+  await page.locator('.global-menu > summary').click();
+  assert.equal(await page.locator('.global-menu nav a').count(), 2);
+  assert.equal(await page.locator('.global-menu nav a[aria-current="page"]').textContent(), 'Global Chat');
+  await page.keyboard.press('Escape');
+  await page.getByLabel('Message', { exact: true }).fill('compiled HTTPS chat smoke');
+  await page.getByLabel('Message', { exact: true }).press('Enter');
+  await page.getByText('compiled HTTPS chat smoke', { exact: true }).waitFor();
 
   assert.deepEqual(errors, []);
   if (process.env.OPEN_WEB_SCREENSHOT) {

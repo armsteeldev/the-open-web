@@ -132,7 +132,7 @@ trap 'exit 143' TERM
 trap 'exit 129' HUP
 
 tar --no-same-owner -xzf "$archive" -C "$staging_dir"
-for expected_path in dist/apps/server/src/index.js dist/database/migrations apps/web/dist/wall/index.html apps/web/dist/release.json scripts/backup.mjs scripts/test-production.mjs package.json package-lock.json; do
+for expected_path in dist/apps/server/src/index.js dist/apps/server/src/spaces/chat/remove-message.js dist/database/migrations apps/web/dist/wall/index.html apps/web/dist/chat/index.html apps/web/dist/release.json scripts/backup.mjs scripts/test-production.mjs package.json package-lock.json; do
   [[ -e $staging_dir/$expected_path ]] || fail "release archive is missing $expected_path"
 done
 manifest=$(cat "$staging_dir/apps/web/dist/release.json")
@@ -170,6 +170,10 @@ public_session=$(curl --fail --silent --show-error --max-time 8 https://open.arm
 printf '%s' "$public_session" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const value=JSON.parse(s);process.exit(Number.isFinite(value.retryAfterMs)?0:1)}catch{process.exit(1)}})' || fail 'public session API did not return a numeric cooldown duration'
 page_html=$(curl --fail --silent --show-error --max-time 12 https://open.armsteel.dev/wall/)
 [[ $page_html == *'class="palette-stack"'* ]] || fail 'public page did not contain the expected wall controls'
+chat_history=$(curl --fail --silent --show-error --max-time 8 https://open.armsteel.dev/api/chat/history) || fail 'public chat history endpoint failed'
+printf '%s' "$chat_history" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s);process.exit(Array.isArray(v.messages)&&Number.isSafeInteger(v.latestId)&&("oldestId" in v)?0:1)}catch{process.exit(1)}})' || fail 'public chat history response was invalid'
+chat_html=$(curl --fail --silent --show-error --max-time 12 https://open.armsteel.dev/chat/)
+[[ $chat_html == *'id="message-input"'* && $chat_html == *'Global Chat'* && $chat_html == *'The Wall'* ]] || fail 'public chat page or shared navigation was incomplete'
 
 state_temp=$(mktemp "$root/.previous-release.XXXXXX")
 printf '%s\n' "$previous_release" > "$state_temp"

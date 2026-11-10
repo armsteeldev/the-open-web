@@ -14,7 +14,7 @@ test('ordered migrations upgrade existing data and fail closed on newer schemas'
  try {
   let db=openDb(path,url);place(db,'visitor',1,2,3,1000,5000);db.close();
   db=openDb(path,new URL('../database/migrations/',import.meta.url));
-  assert.deepEqual(db.prepare('SELECT version FROM migrations ORDER BY version').all().map(r=>r.version),[1,2]);
+  assert.deepEqual(db.prepare('SELECT version FROM migrations ORDER BY version').all().map(r=>r.version),[1,2,3]);
   assert.equal((db.prepare('SELECT pixels FROM wall_tiles').get()!.pixels as Uint8Array)[201],3);db.close();
   const advanced=join(root,'advanced');mkdirSync(advanced);writeFileSync(join(advanced,'001_initial.sql'),readFileSync(new URL('../database/migrations/001_initial.sql',import.meta.url)));writeFileSync(join(advanced,'002_cooldown_retention.sql'),readFileSync(new URL('../database/migrations/002_cooldown_retention.sql',import.meta.url)));for(let version=3;version<=10;version++)writeFileSync(join(advanced,`${String(version).padStart(3,'0')}_extra.sql`),'SELECT 1;');db=openDb(path,pathToFileURL(advanced+'/'));assert.equal(db.prepare('SELECT MAX(version) version FROM migrations').get()!.version,10);db.close();
   assert.throws(()=>openDb(path,new URL('../database/migrations/',import.meta.url)),/not supported/);
@@ -59,6 +59,21 @@ test('a new space-owned migration is consecutive, transactional and leaves Wall 
   db=new DatabaseSync(path);
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE name='module_fixture_rollback'").get()!.count,0);
   assert.equal(db.prepare('SELECT MAX(version) AS version FROM migrations').get()!.version,3);
+  db.close();
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test('failed Global Chat migration rolls back its complete schema and version record',()=>{
+ const root=mkdtempSync(join(tmpdir(),'open-web-chat-migration-'));const path=join(root,'chat.sqlite');const dir=join(root,'migrations');mkdirSync(dir);
+ try {
+  for(const name of ['001_initial.sql','002_cooldown_retention.sql'])writeFileSync(join(dir,name),readFileSync(new URL(`../database/migrations/${name}`,import.meta.url)));
+  const chatSql=readFileSync(new URL('../database/migrations/003_chat_messages.sql',import.meta.url),'utf8');
+  writeFileSync(join(dir,'003_chat_messages.sql'),`${chatSql}\nINVALID SQL;`);
+  assert.throws(()=>openDb(path,pathToFileURL(dir+'/')));
+  const db=new DatabaseSync(path);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name LIKE 'chat_%'").get()!.count,0);
+  assert.equal(db.prepare('SELECT MAX(version) AS version FROM migrations').get()!.version,2);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name='wall_tiles'").get()!.count,1);
   db.close();
  }finally{rmSync(root,{recursive:true,force:true});}
 });

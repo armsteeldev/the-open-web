@@ -13,6 +13,7 @@ export interface SpaceDefinition {
 /** Only finished, visitor-facing spaces belong here. */
 export const spaces = [
   { id: 'wall', label: 'The Wall', path: '/wall', status: 'active' },
+  { id: 'chat', label: 'Global Chat', path: '/chat', status: 'active' },
 ] as const satisfies readonly SpaceDefinition[];
 
 /** Validate registry data at application startup and in repository checks. */

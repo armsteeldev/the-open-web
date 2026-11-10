@@ -14,8 +14,12 @@ The Wall's existing `/api/session` route issues the cookie when needed and prese
 
 ## Data and limits
 
+Global Chat stores the shared cookie digest on each retained message to enforce its three-second per-visitor cooldown and stores a digest plus client request key in a separate idempotency table for up to one hour (capped at 10,000 entries). Chat message text and the selected display nickname remain in the recent-message table for at most 24 hours and no more than 2,000 messages. Removal tombstones contain only a message ID and removal time and are bounded to one day and 5,000 entries. No chat cookie, digest, or network address is sent to other visitors. The optional nickname is saved only in that browser's local storage.
+
 The Wall stores only the digest and last placement time in `visitor_cooldowns`; migration 002 indexes the timestamp, and expired digests are removed in bounded batches. Neither Wall table stores an IP address. No other space should store data just because a digest is available.
 
 Shared per-network request guards cap total requests at 600 per minute and POST/session requests at 180 per minute. The Wall also uses a process-local token bucket with a 12-placement burst and one token refilled per second, plus a 10-second visitor cooldown. Each future space chooses its own action policy with the shared bounded token-bucket or fixed-window primitive. Limits reset after process restart and cannot prevent distributed abuse.
+
+Global Chat uses a persisted three-second per-cookie cooldown, a per-network token bucket with a 20-message burst and one token refilled every three seconds, a process-wide bucket with a 120-message burst and five-message-per-second refill, and a 30-second same-text repeat check per cookie. Chat limits charge only accepted messages; rejected submissions refund process-local tokens. In-memory limits reset after restart and cannot prevent distributed abuse.
 
 IP-based limits use Fastify's trusted proxy configuration and live only in bounded process memory. Addresses are not written to the database. The server disables request logging; do not enable reverse-proxy access logging or extend retention without deciding what it records and for how long. No analytics or third-party scripts are used.

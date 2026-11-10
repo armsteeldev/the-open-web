@@ -4,6 +4,7 @@ import websocket from '@fastify/websocket';
 import type { WebSocket } from 'ws';
 import { activeSpaces, spaces, validateSpaceRegistry, type SpaceDefinition } from '../../../packages/shared/spaces.js';
 import { wallSpace } from './spaces/wall/index.js';
+import { chatSpace } from './spaces/chat/index.js';
 import type { SpaceContext, SpaceModule } from './spaces/types.js';
 import type { AppOptions } from './config.js';
 import { PLACEMENT_COOLDOWN_MS } from './config.js';
@@ -13,7 +14,7 @@ import { RateLimitService } from './services/rate-limits.js';
 import { writesBlocked } from './services/write-gate.js';
 import { SpaceChannels } from './realtime/channels.js';
 
-const defaultModules: readonly SpaceModule[] = [wallSpace];
+const defaultModules: readonly SpaceModule[] = [wallSpace, chatSpace];
 const COMPATIBILITY_ROUTE_OWNER = new Map([['GET /api/session', 'wall']]);
 
 export interface SpaceRegistrationOptions {

@@ -1,6 +1,6 @@
 # Architecture
 
-The Open Web is one shared platform with independently implemented spaces. Today, only The Wall is active. Space registration is explicit and static; there is no dynamic module loader or separate service per space.
+The Open Web is one shared platform with independently implemented spaces. The Wall and Global Chat are active. Space registration is explicit and static; there is no dynamic module loader or separate service per space.
 
 ```mermaid
 flowchart LR
@@ -11,12 +11,18 @@ flowchart LR
   Realtime[SpaceChannels]
   WallUI[Wall frontend]
   WallAPI[Wall server module]
+  ChatUI[Chat frontend]
+  ChatAPI[Chat server module]
   Registry --> Shell
   Registry --> Core
   Shell --> WallUI
+  Shell --> ChatUI
   Core --> WallAPI
+  Core --> ChatAPI
   WallAPI --> DB
   WallAPI --> Realtime
+  ChatAPI --> DB
+  ChatAPI --> Realtime
 ```
 
 ## Shared platform and space ownership
@@ -29,7 +35,7 @@ Spaces communicate with shared services through the `SpaceContext` defined in `a
 
 ## Frontend
 
-Astro serves static pages. `SpaceLayout.astro` provides document structure, typography, tokens, safe-area placement, focus styles, the global menu, and an optional utility slot. Its default `document` mode allows page scrolling. The Wall explicitly selects `layout="viewport"` to preserve its current full-screen canvas behavior. Other spaces can choose the document flow or implement their own content inside the same shell.
+Astro serves static pages. `SpaceLayout.astro` provides document structure, typography, tokens, safe-area placement, focus styles, the global menu, and an optional utility slot. Its default `document` mode allows page scrolling. The Wall selects `layout="viewport"` to preserve its full-screen canvas behavior; Global Chat selects it to keep its message area and composer fitted to the available viewport. Other spaces can choose the document flow or implement their own content inside the same shell.
 
 `GlobalMenu.astro` derives links and the active path from the shared registry. It is independent of a space's internal page layout and uses a native disclosure control for keyboard and touch operation.
 
@@ -50,5 +56,7 @@ Realtime is ephemeral. The platform does not persist events or replay them after
 ## Preserved Wall behavior
 
 The Wall remains a 2,000 × 2,000 canvas divided into 100 × 100 tiles. Palette, 10-second cooldown, overwrite behavior, route paths, event shape, and existing database data are unchanged. Its HTTP endpoints are `/api/wall/tile/:x/:y` and `/api/wall/pixel`; its realtime events remain `{v:1,space:"wall",type:"pixel",x,y,color}`.
+
+Global Chat owns `/chat`, `/api/chat/history`, `/api/chat/messages`, and its `chat_*` tables. It persists recent plain-text messages and uses a snapshot plus buffered events on connect; reconnect always takes a fresh history snapshot. Details and operator procedures are in [GLOBAL-CHAT.md](GLOBAL-CHAT.md).
 
 See [ADDING-A-SPACE.md](ADDING-A-SPACE.md) for the end-to-end implementation sequence, [DATABASE.md](DATABASE.md) for migration and recovery rules, and [DEPLOYMENT.md](DEPLOYMENT.md) for production release gates.

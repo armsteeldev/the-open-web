@@ -12,7 +12,9 @@ The Wall wraps expiry cleanup, cooldown check, tile overwrite, and cooldown upda
 
 ## Migrations
 
-Files in `database/migrations` use consecutive three-digit numbers and an owner/purpose suffix, such as `003_example_records.sql`. The runner applies each migration and its version record in one transaction. Gaps, duplicate numbering, failed SQL, newer database history, and inconsistent histories fail closed. A failed migration rolls back its schema changes. There is no automatic reverse migration.
+Migration 003 creates three Global Chat-owned tables. `chat_messages` stores the autoincrement ID, server timestamp, shared visitor digest, nickname and plain text, with indexes for recent history and repeated-text checks. `chat_idempotency` stores a visitor digest, UUID request key, accepted message ID and timestamp; entries expire after one hour and are capped at 10,000. Its visitor/time index also backs the three-second cooldown when a message row is removed. `chat_message_removals` holds bounded ID/time tombstones so the running process can publish removals made by retention, the hard count cap, or the operator command. Message text is limited to 360 UTF-8 bytes and nickname to 24 Unicode code points/48 UTF-8 bytes. Messages expire after 24 hours and the table is capped at 2,000 rows. No IP address is stored.
+
+Files in `database/migrations` use consecutive three-digit numbers and an owner/purpose suffix, such as `004_example_records.sql`. The runner applies each migration and its version record in one transaction. Gaps, duplicate numbering, failed SQL, newer database history, and inconsistent histories fail closed. A failed migration rolls back its schema changes. There is no automatic reverse migration.
 
 Once released, a migration file is immutable. Make the next schema change in a new numbered file. Keep a migration narrow and compatible with the previously deployed application: code rollback does not automatically roll back a database. Do not add tables for spaces that have not been built. Test new migrations on a disposable database and verify that existing Wall rows and tables remain intact.
 

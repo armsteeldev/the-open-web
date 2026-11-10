@@ -20,6 +20,8 @@ Network addresses and rate counters live only in bounded memory and are not writ
 
 ## Emergency write stop
 
+Global Chat limits are documented in [GLOBAL-CHAT.md](GLOBAL-CHAT.md). The emergency write gate applies to its message endpoint like every other mutation. To remove one message, use the compiled operator command documented there; the command writes a tombstone that connected chat clients receive during the next maintenance pass (within 30 seconds). Do not edit or truncate the SQLite file manually.
+
 Preconfigure `WRITE_GATE_PATH` as an absolute path in an operator-controlled directory readable by the service. Creating that file blocks unsafe methods on the next request without a restart. A missing or unreadable parent directory also blocks writes. Removing the configured flag re-enables writes. Do not make its directory writable by untrusted users. The alternative is `WRITES_ENABLED=false` followed by a restart of only `the-open-web`.
 
 The shared hook runs before every space route, so the emergency gate applies across all active modules. WebSocket clients cannot submit messages; they are disconnected if they send one.
