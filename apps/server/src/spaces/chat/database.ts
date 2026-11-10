@@ -1,4 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { anonymousChatId } from '../../services/anonymous-identity.js';
 
 export const CHAT_HISTORY_LIMIT = 100;
 export const CHAT_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -14,6 +15,7 @@ export interface ChatMessage {
   readonly createdAt: number;
   readonly nickname: string;
   readonly text: string;
+  readonly anonymousId: string;
 }
 
 interface ChatMessageRow {
@@ -21,10 +23,11 @@ interface ChatMessageRow {
   created_at: number;
   nickname: string;
   body: string;
+  visitor_digest: string;
 }
 
 function fromRow(row: ChatMessageRow): ChatMessage {
-  return { id: row.id, createdAt: row.created_at, nickname: row.nickname, text: row.body };
+  return { id: row.id, createdAt: row.created_at, nickname: row.nickname, text: row.body, anonymousId: anonymousChatId(row.visitor_digest) };
 }
 
 function rememberRemoval(db: DatabaseSync, messageIds: readonly number[], now: number): number[] {
@@ -52,7 +55,7 @@ function trimRemovalHistory(db: DatabaseSync, now: number): void {
 export function readRecentMessages(db: DatabaseSync, now = Date.now()): { messages: ChatMessage[]; latestId: number } {
   db.exec('BEGIN');
   try {
-    const rows = db.prepare(`SELECT id, created_at, nickname, body FROM chat_messages
+    const rows = db.prepare(`SELECT id, created_at, nickname, body, visitor_digest FROM chat_messages
       WHERE created_at>=? ORDER BY id DESC LIMIT ?`).all(now - CHAT_RETENTION_MS, CHAT_HISTORY_LIMIT) as unknown as ChatMessageRow[];
     const latest = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM chat_messages WHERE created_at>=?').get(now - CHAT_RETENTION_MS) as { id: number };
     db.exec('COMMIT');
@@ -76,7 +79,7 @@ export function submitChatMessage(
 ): ChatSubmitResult {
   db.exec('BEGIN IMMEDIATE');
   try {
-    const duplicate = db.prepare(`SELECT i.message_id, m.id, m.created_at, m.nickname, m.body
+    const duplicate = db.prepare(`SELECT i.visitor_digest AS visitor_digest, i.message_id, m.id, m.created_at, m.nickname, m.body
       FROM chat_idempotency i LEFT JOIN chat_messages m ON m.id=i.message_id
       WHERE i.visitor_digest=? AND i.request_id=?`).get(visitorDigest, submission.requestId) as
       ({ message_id: number } & ChatMessageRow) | { message_id: number; id: null; created_at: null; nickname: null; body: null } | undefined;
@@ -118,7 +121,7 @@ export function submitChatMessage(
     return {
       ok: true,
       duplicate: false,
-      message: { id, createdAt: now, nickname: submission.nickname, text: submission.text },
+      message: { id, createdAt: now, nickname: submission.nickname, text: submission.text, anonymousId: anonymousChatId(visitorDigest) },
       removedIds,
     };
   } catch (error) {

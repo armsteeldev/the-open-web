@@ -15,6 +15,18 @@ try {
    if(path==='/chat') await page.getByText('Connected',{exact:true}).waitFor();
    const initial=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
    assert.deepEqual(initial.violations.map(v=>({id:v.id,impact:v.impact,help:v.help,nodes:v.nodes.map(n=>n.target)})),[]);
+   if(path==='/chat') {
+    const sampleMessage=`Accessibility check message ${viewport.width}`;
+    const sent=await page.evaluate(async text=>fetch('/api/chat/messages',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestId:crypto.randomUUID(),nickname:'Mira',text})}).then(response=>response.status),sampleMessage);
+    assert.equal(sent,200);
+    await page.locator('#messages').getByText(sampleMessage,{exact:true}).waitFor();
+    const populated=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    assert.deepEqual(populated.violations.map(v=>({id:v.id,impact:v.impact,help:v.help,nodes:v.nodes.map(n=>n.target)})),[]);
+    await page.getByRole('button',{name:/Change$/}).click();
+    const editor=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    assert.deepEqual(editor.violations.map(v=>({id:v.id,impact:v.impact,help:v.help,nodes:v.nodes.map(n=>n.target)})),[]);
+    await page.keyboard.press('Escape');
+   }
    await page.getByLabel('Spaces',{exact:true}).first().click();
    const menu=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
    assert.deepEqual(menu.violations.map(v=>({id:v.id,impact:v.impact,help:v.help,nodes:v.nodes.map(n=>n.target)})),[]);

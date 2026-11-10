@@ -2,61 +2,250 @@
 import SpaceLayout from '../layouts/SpaceLayout.astro';
 ---
 <SpaceLayout title="Global Chat — The Open Web" layout="viewport">
-  <main class="chat" id="chat" aria-label="Global Chat">
-    <header class="chat-header">
-      <h1>Global Chat</h1>
-      <span id="connection-status" role="status" aria-live="polite" aria-atomic="true">Connecting</span>
-      <label class="nickname-control" for="nickname">Nickname <input id="nickname" type="text" maxlength="48" autocomplete="nickname" spellcheck="false" placeholder="Anonymous" /></label>
-    </header>
+  <main class="chat-page" id="chat" aria-label="Global Chat">
+    <section class="chat-room" aria-labelledby="chat-title">
+      <header class="room-header">
+        <div class="room-intro">
+          <p class="room-kicker"><span class="space-number">02</span><span>The Open Web</span></p>
+          <div class="room-title-row">
+            <h1 id="chat-title">Global Chat</h1>
+            <span id="connection-status" class="connection" data-state="connecting" role="status" aria-live="polite" aria-atomic="true">Connecting</span>
+          </div>
+          <p class="room-description">One shared room, open to everyone.</p>
+        </div>
 
-    <div class="message-region" id="message-region">
-      <ol id="messages" aria-label="Recent messages" aria-live="off"></ol>
-      <p id="empty-state">No messages yet. Say hello.</p>
-      <button id="newest" class="newest" type="button" hidden>New messages · Jump to newest</button>
-    </div>
+        <div class="visitor-summary">
+          <span class="visitor-caption">You are</span>
+          <button id="identity-button" class="identity-button" type="button" aria-haspopup="dialog" aria-controls="nickname-dialog">
+            <span id="identity-label">Checking your name…</span>
+            <span class="identity-edit">Change</span>
+          </button>
+        </div>
+      </header>
 
-    <form id="composer" class="composer">
-      <label class="visually-hidden" for="message-input">Message</label>
-      <input id="message-input" name="message" type="text" maxlength="360" autocomplete="off" placeholder="Write a message" aria-describedby="send-feedback" />
-      <button id="send" type="submit">Send</button>
-    </form>
-    <p id="send-feedback" class="feedback" role="status" aria-live="polite" aria-atomic="true"></p>
+      <section class="transcript" id="message-region" tabindex="0" aria-label="Recent conversation">
+        <ol id="messages" aria-label="Recent messages" aria-live="off"></ol>
+        <div id="empty-state" class="empty-state" aria-live="polite">
+          <span class="empty-mark" aria-hidden="true">—</span>
+          <div>
+            <p class="empty-title">Opening the room…</p>
+            <p class="empty-note">Recent messages will appear here.</p>
+          </div>
+        </div>
+      </section>
+
+      <footer class="room-footer">
+        <button id="newest" class="newest" type="button" hidden>Jump to newest</button>
+        <div class="composer-hint"><span>Write to the room</span><span>Enter to send</span></div>
+        <form id="composer" class="composer">
+          <label class="visually-hidden" for="message-input">Message</label>
+          <input id="message-input" name="message" type="text" maxlength="360" autocomplete="off" placeholder="Write a message…" enterkeyhint="send" aria-describedby="send-feedback" />
+          <button id="send" type="submit"><span>Send</span><span class="send-mark" aria-hidden="true">↵</span></button>
+        </form>
+        <p id="send-feedback" class="feedback" data-state="" role="status" aria-live="polite" aria-atomic="true"></p>
+      </footer>
+    </section>
+
+    <dialog id="nickname-dialog" class="nickname-dialog" aria-labelledby="nickname-title" aria-describedby="nickname-description">
+      <div class="dialog-heading">
+        <p class="dialog-kicker">Your name in this room</p>
+        <button id="nickname-close" class="dialog-close" type="button" aria-label="Close nickname editor">×</button>
+      </div>
+      <h2 id="nickname-title">Choose a nickname</h2>
+      <p id="nickname-description" class="dialog-description">Optional. Your anonymous number still helps people tell visitors with the same name apart.</p>
+      <form id="nickname-form" class="nickname-form">
+        <label for="nickname">Nickname <span>optional</span></label>
+        <input id="nickname" type="text" maxlength="48" autocomplete="nickname" spellcheck="false" placeholder="Leave blank to use your anonymous name" />
+        <p class="nickname-hint">Changes apply to new messages only. No account or exclusive name.</p>
+        <p id="nickname-feedback" class="nickname-feedback" role="alert" aria-live="polite" hidden></p>
+        <div class="dialog-actions">
+          <button id="nickname-cancel" type="button">Cancel</button>
+          <button class="save-nickname" type="submit">Save nickname</button>
+        </div>
+      </form>
+    </dialog>
   </main>
   <script>import '../spaces/chat/client';</script>
 </SpaceLayout>
 
 <style is:global>
-  .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
-  .chat{height:100vh;height:100dvh;min-height:0;display:flex;flex-direction:column;gap:7px;padding:43px max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));overflow:hidden}
-  .chat-header{min-height:36px;display:flex;align-items:center;gap:12px;padding-left:38px;padding-right:2px}
-  .chat-header h1{font-size:15px;font-weight:600;margin:0;white-space:nowrap}
-  #connection-status{font-size:12px;color:#555;white-space:nowrap}
-  .nickname-control{margin-left:auto;display:flex;align-items:center;gap:6px;color:#555;white-space:nowrap}
-  .nickname-control input{width:min(180px,32vw);height:30px;padding:4px 7px;border:1px solid var(--ow-border);border-radius:2px;background:var(--ow-surface);color:var(--ow-text);font:inherit}
-  .nickname-control input:focus-visible,.composer input:focus-visible{outline:2px solid var(--ow-focus);outline-offset:1px}
-  .message-region{position:relative;flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;border:1px solid var(--ow-border);background:var(--ow-surface);scrollbar-gutter:stable;padding:4px 8px}
-  #messages{list-style:none;margin:0;padding:0}
-  .message{display:grid;grid-template-columns:5.4em auto minmax(0,1fr);gap:8px;align-items:baseline;padding:3px 0;line-height:1.4;overflow-wrap:anywhere}
-  .message time{font-size:11px;color:var(--ow-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
-  .message .nickname{font-weight:600;color:#3c4d5f;overflow-wrap:anywhere}
-  .message .text{white-space:pre-wrap}
-  #empty-state{margin:8px 0;color:var(--ow-muted)}
-  .newest{position:sticky;float:right;bottom:6px;margin:6px 2px 2px auto;z-index:1;min-height:30px;padding:4px 9px;box-shadow:0 1px 3px #0002}
-  .composer{display:flex;gap:6px;align-items:stretch;margin:0}
-  .composer input{min-width:0;flex:1;height:40px;padding:7px 9px;border:1px solid var(--ow-border);border-radius:2px;background:var(--ow-surface);color:var(--ow-text);font:inherit;font-size:16px}
-  .composer button{height:40px;min-width:62px;padding:0 12px}
-  .composer button:disabled{cursor:default;color:var(--ow-muted)}
-  .feedback{min-height:16px;margin:0 2px;color:var(--ow-muted);font-size:12px}
-  @media(max-width:480px){
-    .chat{gap:5px;padding-top:max(42px,env(safe-area-inset-top) + 36px)}
-    .chat-header{gap:7px;flex-wrap:wrap;min-height:42px}
-    .chat-header h1{font-size:14px}
-    .nickname-control{gap:4px}
-    .nickname-control input{width:min(130px,34vw)}
-    .message-region{padding:4px 6px}
-    .message{grid-template-columns:4.4em auto minmax(0,1fr);gap:5px}
-    .composer input{height:42px}
-    .composer button{height:42px}
+  .chat-page {
+    --chat-paper: #f3f1e9;
+    --chat-ink: #292d2b;
+    --chat-muted: #69675f;
+    --chat-line: #c9c6ba;
+    --chat-soft-line: #e7e4d9;
+    --chat-green: #31564b;
+    --chat-rust: #93613d;
+    height: 100vh;
+    height: var(--chat-viewport-height, 100dvh);
+    min-height: 0;
+    display: flex;
+    justify-content: center;
+    overflow: hidden;
+    padding: max(52px, calc(env(safe-area-inset-top) + 44px)) max(20px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    color: var(--chat-ink);
+    font-size: 14px;
+    transform: translateY(var(--chat-viewport-offset-top, 0px));
   }
-  @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+  .chat-page *, .chat-page *::before, .chat-page *::after { box-sizing: border-box; }
+  .chat-page [hidden] { display: none !important; }
+  .chat-page .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+  .chat-page ~ .global-menu { position: fixed; top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); }
+
+  .chat-page .chat-room {
+    width: min(100%, 980px);
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    border: 1px solid #bdb9ad;
+    background: var(--chat-paper);
+    box-shadow: 0 1px 3px #302c2010;
+  }
+
+  .chat-page .room-header {
+    min-width: 0;
+    min-height: 112px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 17px 24px 16px;
+    border-bottom: 1px solid var(--chat-line);
+  }
+
+  .chat-page .room-intro { min-width: 0; }
+  .chat-page .room-kicker, .chat-page .dialog-kicker { display: flex; align-items: center; gap: 8px; margin: 0 0 5px; color: var(--chat-muted); font-size: 10px; font-weight: 650; letter-spacing: .1em; line-height: 1.2; text-transform: uppercase; }
+  .chat-page .space-number { color: var(--chat-green); font-variant-numeric: tabular-nums; }
+  .chat-page .room-title-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .chat-page .room-title-row h1 { margin: 0; color: #242b28; font: 500 25px/1.12 Georgia, 'Times New Roman', serif; letter-spacing: -.025em; }
+  .chat-page .room-description { margin: 5px 0 0; color: var(--chat-muted); font-size: 12px; line-height: 1.35; }
+
+  .chat-page .connection { display: inline-flex; align-items: center; gap: 6px; min-height: 23px; padding: 2px 8px; border: 1px solid var(--chat-line); border-radius: 2px; color: #5e625c; font-size: 11px; line-height: 1.25; white-space: nowrap; }
+  .chat-page .connection::before { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: #a99b78; content: ''; }
+  .chat-page .connection[data-state="connected"]::before { background: #4d7d58; }
+  .chat-page .connection[data-state="disconnected"], .chat-page .connection[data-state="reconnecting"] { color: #7e4e3b; }
+  .chat-page .connection[data-state="disconnected"]::before, .chat-page .connection[data-state="reconnecting"]::before { background: #b96f43; }
+
+  .chat-page .visitor-summary { display: grid; justify-items: end; gap: 4px; min-width: 0; }
+  .chat-page .visitor-caption { color: var(--chat-muted); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+  .chat-page .identity-button { display: flex; align-items: center; gap: 9px; width: auto; min-width: 44px; min-height: 38px; height: auto; max-width: 360px; padding: 5px 9px; border: 1px solid var(--chat-line); border-radius: 2px; background: #faf9f4; color: var(--chat-green); font: 600 13px/1.3 system-ui, sans-serif; text-align: left; }
+  .chat-page .identity-button > #identity-label { min-width: 0; overflow-wrap: anywhere; }
+  .chat-page .identity-button > #identity-label[data-kind="anonymous"] { white-space: nowrap; overflow-wrap: normal; }
+  .chat-page .identity-edit { flex: 0 0 auto; color: var(--chat-muted); font-size: 11px; font-weight: 450; }
+  .chat-page .identity-button:hover, .chat-page .dialog-actions button:hover { background: #ebe9df; }
+
+  .chat-page .transcript {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding: 9px 24px 12px;
+    background-color: #fbfaf5;
+    background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 31px, #d9d5c91f 31px, #d9d5c91f 32px);
+    scroll-padding-block: 12px;
+  }
+
+  .chat-page .transcript:focus-visible { outline: 2px solid #718c80; outline-offset: -3px; }
+  .chat-page #messages { list-style: none; margin: 0; padding: 0; }
+  .chat-page .message { display: grid; grid-template-columns: 4.2em minmax(11rem, 15rem) minmax(0, 1fr); align-items: baseline; gap: 8px; min-width: 0; padding: 4px 0; line-height: 1.45; }
+  .chat-page .message time { color: #6f6b61; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .chat-page .message .sender { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+  .chat-page .message .nickname { color: var(--chat-green); font-weight: 650; overflow-wrap: anywhere; }
+  .chat-page .message .identity-tag { color: #765a3e; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .chat-page .message .text { min-width: 0; color: #303330; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; }
+  .chat-page .empty-state { display: flex; align-items: flex-start; gap: 11px; max-width: 32rem; margin: 17px 0 0; color: var(--chat-muted); }
+  .chat-page .empty-mark { padding-top: 1px; color: var(--chat-rust); font: 18px/1 Georgia, serif; }
+  .chat-page .empty-state p { margin: 0; }
+  .chat-page .empty-state .empty-title { color: #50514b; font-size: 14px; font-weight: 600; }
+  .chat-page .empty-state .empty-note { margin-top: 3px; font-size: 12px; line-height: 1.4; }
+  .chat-page .newest { display: block; width: max-content; max-width: 100%; min-height: 36px; height: auto; margin: 0 0 8px auto; padding: 7px 11px; border-color: #718477; border-radius: 2px; background: #f3f5ef; color: #314b40; box-shadow: 0 1px 3px #242b2820; }
+  .chat-page .newest:hover { background: #e5ebe2; }
+
+  .chat-page .room-footer { padding: 11px 24px 9px; border-top: 1px solid var(--chat-line); background: #f0eee6; }
+  .chat-page .composer-hint { display: flex; justify-content: space-between; gap: 12px; margin: 0 1px 6px; color: var(--chat-muted); font-size: 11px; line-height: 1.3; }
+  .chat-page .composer-hint span:first-child { color: #52564f; font-weight: 600; }
+  .chat-page .composer { display: flex; align-items: stretch; gap: 8px; margin: 0; }
+  .chat-page .composer input { width: 100%; min-width: 0; min-height: 44px; height: 44px; padding: 9px 11px; border: 1px solid #bdb9ad; border-radius: 2px; background: #fffefa; color: var(--chat-ink); font: 400 16px/1.35 system-ui, sans-serif; }
+  .chat-page .composer input::placeholder { color: #88867c; }
+  .chat-page .composer button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 84px; min-height: 44px; height: 44px; padding: 0 12px; border: 1px solid #28473d; border-radius: 2px; background: #31564b; color: #fffdf6; font-weight: 600; }
+  .chat-page .composer button:hover:not(:disabled) { background: #27483e; }
+  .chat-page .composer button:disabled { cursor: wait; opacity: .65; }
+  .chat-page .send-mark { color: #d2ddd4; font-size: 13px; }
+  .chat-page .feedback { min-height: 16px; margin: 5px 1px 0; color: var(--chat-muted); font-size: 11px; line-height: 1.4; }
+  .chat-page .feedback[data-state="error"], .chat-page .feedback[data-state="cooldown"] { color: #8b4936; }
+  .chat-page .feedback[data-state="pending"] { color: #526c61; }
+  .chat-page .feedback[data-state="success"] { color: #416448; }
+
+  .chat-page .nickname-dialog { width: min(430px, calc(100% - 28px)); max-width: 430px; max-height: min(90dvh, 700px); padding: 21px 22px 20px; border: 1px solid #aaa699; border-radius: 2px; background: #f6f4ed; color: var(--chat-ink); box-shadow: 0 12px 40px #25241f3d; }
+  .chat-page .nickname-dialog::backdrop { background: #26292370; }
+  .chat-page .dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .chat-page .dialog-close { width: 36px; min-width: 36px; height: 36px; padding: 0; border: 1px solid transparent; background: transparent; color: var(--chat-muted); font-size: 24px; line-height: 1; }
+  .chat-page .nickname-dialog h2 { margin: 9px 0 5px; font: 500 22px/1.2 Georgia, 'Times New Roman', serif; }
+  .chat-page .dialog-description, .chat-page .nickname-hint { color: var(--chat-muted); font-size: 12px; line-height: 1.5; }
+  .chat-page .dialog-description { margin: 0 0 16px; }
+  .chat-page .nickname-form { display: grid; gap: 7px; }
+  .chat-page .nickname-form label { display: flex; align-items: baseline; gap: 7px; color: #42463f; font-size: 12px; font-weight: 650; }
+  .chat-page .nickname-form label span { color: var(--chat-muted); font-size: 11px; font-weight: 400; }
+  .chat-page .nickname-form input { width: 100%; min-height: 42px; padding: 8px 10px; border: 1px solid #bdb9ad; border-radius: 2px; background: #fffefa; color: var(--chat-ink); font: 400 16px/1.35 system-ui, sans-serif; }
+  .chat-page .nickname-hint { margin: 0; }
+  .chat-page .nickname-feedback { margin: 2px 0 0; color: #8b4936; font-size: 12px; }
+  .chat-page .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 9px; }
+  .chat-page .dialog-actions button { min-width: 82px; min-height: 40px; height: 40px; padding: 0 12px; }
+  .chat-page .dialog-actions .save-nickname { border-color: #28473d; background: #31564b; color: #fffdf6; }
+  .chat-page .dialog-actions .save-nickname:hover { background: #27483e; }
+
+  .chat-page :is(button, input):focus-visible { outline: 2px solid #345ea7; outline-offset: 2px; }
+
+  @media (max-width: 680px) {
+    .chat-page { padding: max(52px, calc(env(safe-area-inset-top) + 44px)) max(8px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+    .chat-page .chat-room { width: 100%; }
+    .chat-page .room-header { min-height: 0; flex-direction: column; align-items: stretch; gap: 9px; padding: 12px 13px 11px; }
+    .chat-page .room-title-row { flex-wrap: nowrap; gap: 8px; }
+    .chat-page .room-title-row h1 { font-size: 22px; }
+    .chat-page .room-description { max-width: none; font-size: 11px; }
+    .chat-page .visitor-summary { width: 100%; max-width: none; display: flex; flex-direction: row; align-items: center; justify-items: stretch; justify-content: space-between; gap: 8px; }
+    .chat-page .identity-button { max-width: 100%; min-height: 40px; gap: 7px; padding: 5px 8px; font-size: 12px; }
+    .chat-page .identity-edit { font-size: 10px; }
+    .chat-page .transcript { padding: 8px 13px 10px; }
+    .chat-page .message { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; padding: 7px 0; line-height: 1.45; }
+    .chat-page .message .sender { grid-column: 1; grid-row: 1; }
+    .chat-page .message time { grid-column: 2; grid-row: 1; align-self: baseline; }
+    .chat-page .message .text { grid-column: 1 / -1; grid-row: 2; font-size: 14px; }
+    .chat-page .empty-state { margin-top: 13px; }
+    .chat-page .room-footer { padding: 9px 12px 8px; }
+    .chat-page .composer-hint { margin-bottom: 5px; }
+    .chat-page .composer { gap: 6px; }
+    .chat-page .composer input { min-height: 46px; height: 46px; padding-inline: 10px; }
+    .chat-page .composer button { min-width: 76px; min-height: 46px; height: 46px; padding-inline: 10px; }
+    .chat-page .feedback { min-height: 16px; }
+  }
+
+  @media (max-width: 360px) {
+    .chat-page .room-header { align-items: stretch; padding-inline: 10px; }
+    .chat-page .room-intro { flex: 1 1 auto; }
+    .chat-page .visitor-caption { font-size: 9px; }
+    .chat-page .identity-button { max-width: 100%; min-height: 40px; }
+    .chat-page .transcript { padding-inline: 10px; }
+    .chat-page .room-footer { padding-inline: 9px; }
+    .chat-page .composer-hint { font-size: 10px; }
+  }
+
+  @media (orientation: landscape) and (max-height: 520px) {
+    .chat-page { padding-top: max(42px, calc(env(safe-area-inset-top) + 34px)); padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+    .chat-page .room-header { min-height: 76px; padding-block: 8px; }
+    .chat-page .room-description { margin-top: 2px; }
+    .chat-page .room-footer { padding-block: 6px; }
+    .chat-page .composer-hint { margin-bottom: 3px; }
+    .chat-page .composer input, .chat-page .composer button { min-height: 40px; height: 40px; }
+    .chat-page .feedback { margin-top: 2px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chat-page *, .chat-page *::before, .chat-page *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  }
 </style>

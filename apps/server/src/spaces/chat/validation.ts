@@ -33,6 +33,7 @@ function normalizeNickname(value: unknown): string | null {
 
   const normalized = value.normalize('NFC').replace(/[\t\r\n\p{White_Space}]+/gu, ' ').trim();
   if (!normalized) return 'Anonymous';
+  if (/^anonymous\d+$/iu.test(normalized)) return null;
   if (Array.from(normalized).length > CHAT_MAX_NICKNAME_CODEPOINTS) return null;
   if (Buffer.byteLength(normalized, 'utf8') > CHAT_MAX_NICKNAME_BYTES) return null;
   return normalized;

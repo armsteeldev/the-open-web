@@ -4,6 +4,17 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 const COOKIE_NAME = 'ow_id';
 const COOKIE_MAX_AGE_SECONDS = 31_536_000;
 const COOKIE_PATTERN = /^[a-f0-9]{64}$/;
+const CHAT_LABEL_DOMAIN = 'the-open-web/chat/anonymous-label/v1\0';
+
+/**
+ * A visitor-facing, deterministic label derived from the already-private cookie digest.
+ * It is deliberately a short numeric label, so collisions remain possible; it is not an account ID.
+ */
+export function anonymousChatId(visitorDigest: string): string {
+  if (!COOKIE_PATTERN.test(visitorDigest)) throw new Error('invalid anonymous visitor digest');
+  const hash = createHash('sha256').update(CHAT_LABEL_DOMAIN).update(visitorDigest).digest('hex');
+  return (BigInt(`0x${hash}`) % 1_000_000_000n).toString().padStart(9, '0');
+}
 
 /** Only the derived digest crosses the shared identity boundary. */
 export interface AnonymousIdentity {

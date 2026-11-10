@@ -1,6 +1,6 @@
 # Identity and privacy
 
-There are no accounts, registration, passwords, email addresses, mandatory usernames, public profiles, tracking IDs, or fingerprints. A visitor can participate anonymously.
+There are no accounts, registration, passwords, email addresses, mandatory usernames, public profiles, analytics tracking IDs, or fingerprints. A visitor can participate anonymously.
 
 ## Shared anonymous visitor ID
 
@@ -11,6 +11,8 @@ The platform cookie hook reads and validates the cookie, derives a SHA-256 diges
 A digest is a pseudonymous bearer identifier, not proof that a cookie represents one human. People may clear cookies, change browsers, share a device, or use multiple devices. A cookie can be copied or replaced. Do not describe the identity as verified, unique, permanent, or an account. A space should store the digest only when its feature or technical abuse bound requires it.
 
 The Wall's existing `/api/session` route issues the cookie when needed and preserves its response fields `retryAt` and `retryAfterMs` for its cooldown UI. That endpoint is Wall compatibility behavior, not a requirement for new spaces. Other modules can call `context.identity.ensure` from their own route.
+
+Global Chat derives a public display label from the existing digest with a chat-specific domain separator. It returns only a nine-digit decimal label; it never returns the cookie or internal digest. The label is stable while the cookie remains and is not guaranteed unique or verified. It is shown so visitors can follow a conversation, not for analytics or cross-site tracking. A custom nickname is an optional local preference and is shown beside the label; it grants no ownership and changing it affects only future messages. The label requires no additional database row, cookie, fingerprint, or personal data.
 
 ## Data and limits
 

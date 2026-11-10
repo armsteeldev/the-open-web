@@ -8,6 +8,7 @@ import {
   submitChatMessage,
 } from './database.js';
 import { validateChatSubmission } from './validation.js';
+import { anonymousChatId } from '../../services/anonymous-identity.js';
 
 const removalCursors = new WeakMap<DatabaseSync, number>();
 
@@ -21,10 +22,14 @@ export const chatSpace: SpaceModule = {
 
     app.get('/api/chat/history', async (request, reply) => {
       // History loads the common cookie session without creating any per-visitor database record.
-      context.identity.ensure(request, reply);
+      const visitorDigest = context.identity.ensure(request, reply);
       reply.header('Cache-Control', 'no-store');
       const snapshot = readRecentMessages(context.db);
-      return { ...snapshot, oldestId: snapshot.messages[0]?.id ?? null };
+      return {
+        ...snapshot,
+        identity: { anonymousId: anonymousChatId(visitorDigest) },
+        oldestId: snapshot.messages[0]?.id ?? null,
+      };
     });
 
     app.post('/api/chat/messages', async (request, reply) => {
@@ -62,7 +67,7 @@ export const chatSpace: SpaceModule = {
         visitorNetworkBudget.refund(request.ip);
       } else {
         for (const id of result.removedIds) context.realtime.publish('remove', { id });
-        context.realtime.publish('message', { ...result.message });
+        if (result.message) context.realtime.publish('message', { ...result.message });
       }
 
       return { ok: true, duplicate: result.duplicate, message: result.message };

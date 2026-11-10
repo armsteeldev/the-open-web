@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WebSocket } from 'ws';
@@ -8,11 +9,26 @@ import { createApp } from '../apps/server/src/app.js';
 import { openDb } from '../apps/server/src/db.js';
 import { CHAT_MESSAGE_CAP, CHAT_RETENTION_MS, cleanupChat, publishPendingRemovals, readRecentMessages, removeChatMessage, submitChatMessage } from '../apps/server/src/spaces/chat/database.js';
 import { validateChatSubmission } from '../apps/server/src/spaces/chat/validation.js';
+import { anonymousChatId } from '../apps/server/src/services/anonymous-identity.js';
 
 const origin = 'http://localhost:4321';
 const options = (dbPath: string, writes = true) => ({ dbPath, origin, cooldown: 10_000, writes, secure: false });
 const requestId = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const body = (text: string, id = 1, nickname?: string) => ({ requestId: requestId(id), text, ...(nickname === undefined ? {} : { nickname }) });
+
+test('public chat identity is a stable nine-digit derivation, not the cookie digest', () => {
+  const digestA = 'a'.repeat(64);
+  const digestB = 'b'.repeat(64);
+  assert.match(anonymousChatId(digestA), /^\d{9}$/);
+  assert.equal(anonymousChatId(digestA), anonymousChatId(digestA));
+  assert.notEqual(anonymousChatId(digestA), anonymousChatId(digestB));
+  assert.equal(
+    anonymousChatId('000000000000000000000000000000000000000000000000000000000000b9a6'),
+    anonymousChatId('000000000000000000000000000000000000000000000000000000000001069d'),
+    'different visitor digests can collide in the deliberately short public label',
+  );
+  assert.throws(() => anonymousChatId('not-a-digest'), /invalid anonymous visitor digest/);
+});
 
 async function cookieFor(app: Awaited<ReturnType<typeof createApp>>): Promise<string> {
   const response = await app.inject({ url: '/api/chat/history' });
@@ -43,6 +59,8 @@ test('chat validation normalizes Unicode and rejects empty, malformed, unsafe, a
   assert.deepEqual(validateChatSubmission({ text: 'hi', requestId: 'arbitrary' }), { ok: false, error: 'invalid input' });
   assert.deepEqual(validateChatSubmission(body('hello', 9, 'bad\u0000name')), { ok: false, error: 'invalid nickname' });
   assert.deepEqual(validateChatSubmission(body('hello', 10, 'n'.repeat(25))), { ok: false, error: 'invalid nickname' });
+  assert.deepEqual(validateChatSubmission(body('hello', 12, 'Anonymous123456789')), { ok: false, error: 'invalid nickname' });
+  assert.equal(validateChatSubmission(body('hello', 13, 'Alex')).ok, true);
   assert.equal(validateChatSubmission(body('<script>alert(1)</script>', 11)).ok, true);
 });
 
@@ -60,8 +78,18 @@ test('chat HTTP uses shared anonymous identity, authoritative order, idempotency
     const cookieB = await cookieFor(app);
     assert.match(cookieA, /^ow_id=/);
     const history = await app.inject({ url: '/api/chat/history', headers: { cookie: cookieA } });
-    assert.deepEqual(history.json(), { messages: [], latestId: 0, oldestId: null });
+    const anonymousIdA = history.json().identity.anonymousId as string;
+    const cookieDigestA = createHash('sha256').update(cookieA.slice('ow_id='.length)).digest('hex');
+    assert.match(anonymousIdA, /^\d{9}$/);
+    assert.deepEqual(history.json(), { messages: [], latestId: 0, identity: { anonymousId: anonymousIdA }, oldestId: null });
     assert.equal(JSON.stringify(history.json()).includes(cookieA), false);
+    assert.equal(JSON.stringify(history.json()).includes(cookieDigestA), false);
+    assert.equal(Object.hasOwn(history.json().identity, 'visitorDigest'), false);
+    const reloadedHistory = await app.inject({ url: '/api/chat/history', headers: { cookie: cookieA } });
+    assert.equal(reloadedHistory.json().identity.anonymousId, anonymousIdA);
+    const anonymousIdB = (await app.inject({ url: '/api/chat/history', headers: { cookie: cookieB } })).json().identity.anonymousId as string;
+    assert.match(anonymousIdB, /^\d{9}$/);
+    assert.notEqual(anonymousIdB, anonymousIdA);
     const crossOrigin = await app.inject({ method: 'POST', url: '/api/chat/messages', headers: { cookie: cookieA, origin: 'https://attacker.example' }, payload: body('blocked', 1) });
     assert.equal(crossOrigin.statusCode, 403);
 
@@ -75,19 +103,24 @@ test('chat HTTP uses shared anonymous identity, authoritative order, idempotency
     chatSocket.on('message', data => chatEvents.push(data.toString()));
     wallSocket.on('message', data => wallEvents.push(data.toString()));
 
-    const input = body(`${'"'.repeat(360)}`, 12, '"'.repeat(24));
+    const input = { ...body(`${'"'.repeat(360)}`, 12, '"'.repeat(24)), anonymousId: 'caller-chosen-label' };
     const sent = await app.inject({ method: 'POST', url: '/api/chat/messages', headers: { cookie: cookieA, origin }, payload: input });
     assert.equal(sent.statusCode, 200);
     assert.equal(sent.json().ok, true);
     assert.equal(sent.json().message.id, 1);
     assert.equal(sent.json().message.nickname, '"'.repeat(24));
+    assert.equal(sent.json().message.anonymousId, anonymousIdA);
+    assert.notEqual(sent.json().message.anonymousId, input.anonymousId);
+    assert.equal(Object.hasOwn(sent.json().message, 'visitorDigest'), false);
     await new Promise(resolve => setTimeout(resolve, 20));
     assert.equal(chatEvents.length, 1);
     assert.ok(Buffer.byteLength(chatEvents[0]) <= 1024);
     const event = JSON.parse(chatEvents[0]);
-    assert.deepEqual(Object.keys(event).sort(), ['createdAt', 'id', 'nickname', 'space', 'text', 'type', 'v'].sort());
+    assert.deepEqual(Object.keys(event).sort(), ['anonymousId', 'createdAt', 'id', 'nickname', 'space', 'text', 'type', 'v'].sort());
     assert.equal(event.space, 'chat');
     assert.equal(event.text, input.text);
+    assert.equal(event.anonymousId, anonymousIdA);
+    assert.equal(Object.hasOwn(event, 'visitorDigest'), false);
     assert.equal(wallEvents.length, 0);
 
     const duplicate = await app.inject({ method: 'POST', url: '/api/chat/messages', headers: { cookie: cookieA, origin }, payload: input });
@@ -102,7 +135,10 @@ test('chat HTTP uses shared anonymous identity, authoritative order, idempotency
     assert.deepEqual(concurrent.map(response => response.statusCode), [429, 200]);
     assert.equal(concurrent[0].json().error, 'cooldown');
 
-    const cookieC = await cookieFor(app);
+    const cookieC = await cookieFor(app); // A missing cookie behaves like a cleared visitor cookie.
+    const anonymousIdC = (await app.inject({ url: '/api/chat/history', headers: { cookie: cookieC } })).json().identity.anonymousId as string;
+    assert.notEqual(anonymousIdC, anonymousIdA);
+    assert.notEqual(anonymousIdC, anonymousIdB);
     const third = await app.inject({ method: 'POST', url: '/api/chat/messages', headers: { cookie: cookieC, origin }, payload: body('<script>literal text</script>', 15) });
     assert.equal(third.statusCode, 200);
     await new Promise(resolve => setTimeout(resolve, 30));
@@ -118,8 +154,21 @@ test('chat HTTP uses shared anonymous identity, authoritative order, idempotency
 
     const ordered = await app.inject({ url: '/api/chat/history', headers: { cookie: cookieA } });
     assert.deepEqual(ordered.json().messages.map((message: { id: number }) => message.id), [1, 2, 3]);
+    assert.ok(ordered.json().messages.every((message: { anonymousId?: unknown }) => /^\d{9}$/.test(String(message.anonymousId))));
+    assert.equal(JSON.stringify(ordered.json()).includes(cookieDigestA), false);
+    assert.equal(ordered.json().messages[0].anonymousId, anonymousIdA);
     assert.equal(ordered.json().messages[2].nickname, 'Anonymous');
+    assert.equal(ordered.json().messages[2].anonymousId, anonymousIdC);
     assert.equal(ordered.json().messages[2].text, '<script>literal text</script>');
+
+    const cookieD = await cookieFor(app);
+    const cookieE = await cookieFor(app);
+    const repeatedNameD = await app.inject({ method: 'POST', url: '/api/chat/messages', headers: { cookie: cookieD, origin }, payload: body('same nickname, first visitor', 16, 'Alex') });
+    const repeatedNameE = await app.inject({ method: 'POST', url: '/api/chat/messages', headers: { cookie: cookieE, origin }, payload: body('same nickname, second visitor', 17, 'Alex') });
+    assert.equal(repeatedNameD.statusCode, 200);
+    assert.equal(repeatedNameE.statusCode, 200);
+    assert.equal(repeatedNameD.json().message.nickname, repeatedNameE.json().message.nickname);
+    assert.notEqual(repeatedNameD.json().message.anonymousId, repeatedNameE.json().message.anonymousId);
 
     chatSocket.close();
     wallSocket.close();
@@ -128,7 +177,8 @@ test('chat HTTP uses shared anonymous identity, authoritative order, idempotency
     await app.close();
     app = await createApp(options(path));
     const afterRestart = await app.inject({ url: '/api/chat/history' });
-    assert.deepEqual(afterRestart.json().messages.map((message: { id: number }) => message.id), [1, 2, 3]);
+    assert.deepEqual(afterRestart.json().messages.map((message: { id: number }) => message.id), [1, 2, 3, 4, 5]);
+    assert.equal(afterRestart.json().messages[0].anonymousId, anonymousIdA);
   } finally {
     chatSocket?.terminate();
     wallSocket?.terminate();
