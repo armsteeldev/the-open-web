@@ -50,7 +50,7 @@ const current = Astro.url.pathname;
   window.addEventListener('pageshow', () => closeOthers());
 </script>
 <style is:global>
-  .global-menu { position: fixed; z-index: 10; top: max(8px,env(safe-area-inset-top)); left: max(8px,env(safe-area-inset-left)); }
+  .global-menu.top-disclosure { position: fixed; z-index: 10; top: max(8px,env(safe-area-inset-top)); left: max(8px,env(safe-area-inset-left)); }
   .top-disclosure { position: relative; }
   .top-disclosure > summary { list-style: none; display: grid; place-items: center; }
   .top-disclosure > summary::-webkit-details-marker { display: none; }

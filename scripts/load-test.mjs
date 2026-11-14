@@ -144,7 +144,19 @@ try {
     })));
   }
 
+  // Exercise both spaces at the shared 500-connection ceiling. A chat-only
+  // phase would miss contention and accidental cross-channel delivery.
+  const wallCount = 400;
   const chatCount = 100;
+  const wallVisitors = await Promise.all(Array.from({ length: wallCount }, async () => {
+    const n = addressNumber++;
+    const address = `198.51.${100 + Math.floor(n / 254)}.${1 + n % 254}`;
+    const session = await fetch(`${base}/api/session`, { headers: { 'x-forwarded-for': address } });
+    if (!session.ok) throw Error(`Wall session failed for mixed visitor: ${session.status}`);
+    const cookie = session.headers.get('set-cookie')?.split(';', 1)[0];
+    if (!cookie) throw Error('mixed Wall session cookie missing');
+    return { address, cookie };
+  }));
   const chatVisitors = await Promise.all(Array.from({ length: chatCount }, async () => {
     const n = addressNumber++;
     const address = `198.51.${100 + Math.floor(n / 254)}.${1 + n % 254}`;
@@ -154,48 +166,98 @@ try {
     if (!cookie) throw Error('chat session cookie missing');
     return { address, cookie };
   }));
-  const received = Array.from({ length: chatCount }, () => new Set());
-  const chatSockets = await Promise.all(chatVisitors.map(async ({ address }, index) => {
+  const wallPending = new Map();
+  const wallEachReceived = Array(wallCount).fill(0);
+  const wallCrossSpaceEvents = { count: 0 };
+  const wallSockets = await Promise.all(wallVisitors.map(async ({ address }, visitorIndex) => {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/api/events?space=wall`, {
+      origin: base,
+      headers: { 'x-forwarded-for': address },
+    });
+    socket.on('message', data => {
+      const event = JSON.parse(data.toString());
+      if (event.space !== 'wall') { wallCrossSpaceEvents.count++; return; }
+      const item = wallPending.get(`${event.x}:${event.y}`);
+      if (item) { item.received++; item.last = performance.now(); wallEachReceived[visitorIndex]++; }
+    });
+    await opened(socket);
+    return socket;
+  }));
+  const chatReceived = Array.from({ length: chatCount }, () => new Set());
+  const chatCrossSpaceEvents = { count: 0 };
+  const chatSockets = await Promise.all(chatVisitors.map(async ({ address }, visitorIndex) => {
     const socket = new WebSocket(`ws://127.0.0.1:${port}/api/events?space=chat`, {
       origin: base,
       headers: { 'x-forwarded-for': address },
     });
     socket.on('message', data => {
       const event = JSON.parse(data.toString());
-      if (event.space === 'chat' && event.type === 'message') received[index].add(event.id);
+      if (event.space !== 'chat') { chatCrossSpaceEvents.count++; return; }
+      if (event.type === 'message') chatReceived[visitorIndex].add(event.id);
     });
     await opened(socket);
     return socket;
   }));
-  const chatStarted = performance.now();
-  const chatWrites = await Promise.all(chatVisitors.map(async ({ address, cookie }, index) => {
-    const started = performance.now();
-    const response = await fetch(`${base}/api/chat/messages`, {
-      method: 'POST',
-      headers: { cookie, origin: base, 'content-type': 'application/json', 'x-forwarded-for': address },
-      body: JSON.stringify({ requestId: randomUUID(), nickname: 'Load visitor', text: `chat-load-${index}` }),
-    });
-    return { status: response.status, elapsed: performance.now() - started };
-  }));
-  const chatDeadline = Date.now() + 10_000;
-  while (received.some(messages => messages.size < chatCount) && Date.now() < chatDeadline) {
-    await new Promise(resolve => setTimeout(resolve, 10));
+
+  const mixedRow = 1_850;
+  for (let i = 0; i < wallCount; i++) wallPending.set(`${i}:${mixedRow}`, { started: 0, received: 0, last: 0 });
+  const mixedStarted = performance.now();
+  const [wallWrites, chatWrites] = await Promise.all([
+    Promise.all(wallVisitors.map(async ({ address, cookie }, index) => {
+      const item = wallPending.get(`${index}:${mixedRow}`);
+      item.started = performance.now();
+      const response = await fetch(`${base}/api/wall/pixel`, {
+        method: 'POST',
+        headers: { cookie, origin: base, 'content-type': 'application/json', 'x-forwarded-for': address },
+        body: JSON.stringify({ x: index, y: mixedRow, color: 6 }),
+      });
+      return { status: response.status, elapsed: performance.now() - item.started };
+    })),
+    Promise.all(chatVisitors.map(async ({ address, cookie }, index) => {
+      const started = performance.now();
+      const response = await fetch(`${base}/api/chat/messages`, {
+        method: 'POST',
+        headers: { cookie, origin: base, 'content-type': 'application/json', 'x-forwarded-for': address },
+        body: JSON.stringify({ requestId: randomUUID(), nickname: 'Mixed load', text: `mixed-chat-${index}` }),
+      });
+      return { status: response.status, elapsed: performance.now() - started };
+    })),
+  ]);
+
+  const mixedDeadline = Date.now() + 10_000;
+  while (
+    (wallEachReceived.some(count => count < wallCount) || chatReceived.some(messages => messages.size < chatCount)) &&
+    Date.now() < mixedDeadline
+  ) await new Promise(resolve => setTimeout(resolve, 10));
+  if (
+    wallWrites.some(write => write.status !== 200) ||
+    chatWrites.some(write => write.status !== 200) ||
+    wallEachReceived.some(count => count !== wallCount) ||
+    chatReceived.some(messages => messages.size !== chatCount) ||
+    wallCrossSpaceEvents.count !== 0 || chatCrossSpaceEvents.count !== 0
+  ) {
+    throw Error(`mixed load failed: wall=${wallWrites.map(write => write.status).join(',')} chat=${chatWrites.map(write => write.status).join(',')} wall-delivery=${wallEachReceived.join(',')} chat-delivery=${chatReceived.map(messages => messages.size).join(',')} cross=${wallCrossSpaceEvents.count}/${chatCrossSpaceEvents.count}`);
   }
-  if (chatWrites.some(write => write.status !== 200) || received.some(messages => messages.size !== chatCount)) {
-    throw Error(`chat load failed: statuses=${chatWrites.map(write => write.status).join(',')} deliveries=${received.map(messages => messages.size).join(',')}`);
-  }
+
+  const wallDelivery = [...wallPending.values()];
   console.log(JSON.stringify({
-    space: 'chat',
-    visitors: chatCount,
-    websocketConnections: chatSockets.length,
-    acceptedMessages: chatWrites.length,
-    receivedEvents: received.reduce((sum, messages) => sum + messages.size, 0),
-    messageResponseMs: { p50: percentile(chatWrites.map(write => write.elapsed), 0.5), p95: percentile(chatWrites.map(write => write.elapsed), 0.95), max: Number(Math.max(...chatWrites.map(write => write.elapsed)).toFixed(2)) },
-    allToAllBroadcastMs: Number((performance.now() - chatStarted).toFixed(2)),
+    workload: 'mixed',
+    wallVisitors: wallCount,
+    chatVisitors: chatCount,
+    totalWebsocketConnections: wallSockets.length + chatSockets.length,
+    wallPlacements: wallWrites.length,
+    chatMessages: chatWrites.length,
+    wallReceivedEvents: wallDelivery.reduce((sum, item) => sum + item.received, 0),
+    chatReceivedEvents: chatReceived.reduce((sum, messages) => sum + messages.size, 0),
+    crossSpaceEvents: wallCrossSpaceEvents.count + chatCrossSpaceEvents.count,
+    wallPlacementMs: { p50: percentile(wallWrites.map(write => write.elapsed), 0.5), p95: percentile(wallWrites.map(write => write.elapsed), 0.95), max: Number(Math.max(...wallWrites.map(write => write.elapsed)).toFixed(2)) },
+    chatMessageMs: { p50: percentile(chatWrites.map(write => write.elapsed), 0.5), p95: percentile(chatWrites.map(write => write.elapsed), 0.95), max: Number(Math.max(...chatWrites.map(write => write.elapsed)).toFixed(2)) },
+    wallBroadcastToLastSubscriberMs: { p50: percentile(wallDelivery.map(item => item.last - item.started), 0.5), p95: percentile(wallDelivery.map(item => item.last - item.started), 0.95), max: Number(Math.max(...wallDelivery.map(item => item.last - item.started)).toFixed(2)) },
+    allToAllBroadcastMs: Number((performance.now() - mixedStarted).toFixed(2)),
     backendRssMiB: Number((memoryKiB(server.pid) / 1024).toFixed(1)),
     databaseMiB: databaseMiB(dbPath),
   }));
-  await Promise.all(chatSockets.map(socket => new Promise(resolve => {
+  await Promise.all([...wallSockets, ...chatSockets].map(socket => new Promise(resolve => {
     socket.once('close', resolve);
     socket.close();
   })));

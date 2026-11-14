@@ -52,7 +52,9 @@ const storageKey = 'the-open-web.chat.nickname';
 const anonymousIdPattern = /^\d{9}$/;
 let socket: WebSocket | undefined;
 let reconnectTimer: number | undefined;
+let historyRetryTimer: number | undefined;
 let reconnectAttempt = 0;
+let historyRetryAttempt = 0;
 let syncGeneration = 0;
 let syncing = false;
 let syncBuffer: ChatEvent[] = [];
@@ -289,6 +291,8 @@ function reconcile(snapshot: HistorySnapshot, events: ChatEvent[]): void {
 }
 
 async function synchronize(): Promise<void> {
+  if (historyRetryTimer !== undefined) window.clearTimeout(historyRetryTimer);
+  historyRetryTimer = undefined;
   const generation = ++syncGeneration;
   syncing = true;
   syncBuffer = [];
@@ -304,14 +308,26 @@ async function synchronize(): Promise<void> {
     reconcile(snapshot, buffered);
     syncBuffer = [];
     syncing = false;
+    historyRetryAttempt = 0;
     setConnection('Connected', 'connected');
     if (overflowed) void synchronize();
   } catch {
     if (generation !== syncGeneration) return;
     syncing = true;
     setConnection('Restoring history', 'synchronizing');
-    window.setTimeout(() => { if (socket?.readyState === WebSocket.OPEN) void synchronize(); }, 1_500);
+    scheduleHistoryRetry();
   }
+}
+
+function scheduleHistoryRetry(): void {
+  if (historyRetryTimer !== undefined || !navigator.onLine) return;
+  const base = Math.min(30_000, 1_500 * 2 ** Math.min(historyRetryAttempt, 5));
+  const delay = Math.min(30_000, Math.round(base * (0.75 + Math.random() * 0.5)));
+  historyRetryAttempt = Math.min(historyRetryAttempt + 1, 6);
+  historyRetryTimer = window.setTimeout(() => {
+    historyRetryTimer = undefined;
+    if (socket?.readyState === WebSocket.OPEN) void synchronize();
+  }, delay);
 }
 
 function scheduleReconnect(): void {
@@ -322,7 +338,7 @@ function scheduleReconnect(): void {
     return;
   }
   const base = Math.min(30_000, 500 * 2 ** Math.min(reconnectAttempt, 6));
-  const delay = Math.round(base * (0.75 + Math.random() * 0.5));
+  const delay = Math.min(30_000, Math.round(base * (0.75 + Math.random() * 0.5)));
   reconnectAttempt += 1;
   reconnectTimer = window.setTimeout(connect, delay);
 }
@@ -352,6 +368,8 @@ function connect(): void {
   next.addEventListener('close', () => {
     if (socket !== next) return;
     socket = undefined;
+    if (historyRetryTimer !== undefined) window.clearTimeout(historyRetryTimer);
+    historyRetryTimer = undefined;
     syncGeneration += 1;
     syncing = false;
     syncBuffer = [];

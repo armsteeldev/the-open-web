@@ -8,7 +8,7 @@ From the project checkout, commit the changes you intend to publish, then run:
 npm run release
 ```
 
-The command builds and checks the exact clean Git commit in a fresh temporary checkout. It runs dependency installation and audit, lint, type checking, unit tests, production build, browser checks, production dependency smoke test, isolated Caddy routing test, and the 500-visitor load check. It creates a checksummed package containing that build. Only after those steps pass does it request sudo for production activation. Enter the sudo password in the terminal when prompted.
+The command builds and checks the exact clean Git commit in a fresh temporary checkout. It runs dependency installation and audit, lint, type checking, unit tests, production build, browser checks, production dependency smoke test, isolated Caddy routing test, and the load check. The load test retains the 500-client Wall scenarios and exercises 400 Wall plus 100 Chat WebSocket clients together at the shared 500-connection limit. It creates a checksummed package containing that build. Only after those steps pass does it request sudo for production activation. Enter the sudo password in the terminal when prompted.
 
 Use the check-only form to run the complete verification and package the commit without changing production:
 

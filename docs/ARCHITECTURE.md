@@ -37,7 +37,7 @@ Spaces communicate with shared services through the `SpaceContext` defined in `a
 
 Astro serves static pages. `SpaceLayout.astro` provides document structure, typography, tokens, safe-area placement, focus styles, the global menu, and an optional utility slot. Its default `document` mode allows page scrolling. The Wall selects `layout="viewport"` to preserve its full-screen canvas behavior; Global Chat selects it to keep its message area and composer fitted to the available viewport. Other spaces can choose the document flow or implement their own content inside the same shell.
 
-`GlobalMenu.astro` derives links and the active path from the shared registry. It is independent of a space's internal page layout and uses a native disclosure control for keyboard and touch operation.
+`GlobalMenu.astro` derives links and the active path from the shared registry. It is independent of a space's internal page layout and uses a native disclosure control for keyboard and touch operation. The menu has an explicit fixed, safe-area-aware viewport position that takes precedence over the shared relative positioning for disclosures. Its browser regression test checks viewport bounds, stacking, pointer access, open/close behavior, keyboard operation, canvas interaction, and cross-space navigation on desktop, large desktop, tablet, narrow mobile, and mobile landscape. With Playwright Firefox and WebKit installed, run `OPEN_WEB_BROWSER=firefox ONLY_BROWSER_TEST=menu npm run test:browser` or use `webkit` to repeat those checks in another engine.
 
 ## Backend and persistence
 

@@ -12,7 +12,7 @@ const temp=mkdtempSync(join(tmpdir(),'open-web-browser-'));const apiPort=await p
 try {
  web=spawn(process.execPath,['node_modules/astro/bin/astro.mjs','dev','--root','apps/web','--host','127.0.0.1','--port',String(webPort),'--strictPort','--ignore-lock'],{env:{...process.env,WEB_API_TARGET:api},stdio:['ignore','pipe','pipe']});
  await waitForOutput(web,base);
- const allTests=['menu','keyboard','accessibility','touch','viewport','tiles','race','reliability','refinement','chat'];
+ const allTests=['menu','keyboard','accessibility','touch','viewport','tiles','race','reliability','refinement','chat-recovery','chat'];
  const selected=process.env.ONLY_BROWSER_TEST?[process.env.ONLY_BROWSER_TEST]:allTests;
  if(selected.some(name=>!allTests.includes(name)))throw Error(`Unknown browser test selection: ${selected.join(',')}`);
  for(const name of selected) {
