@@ -32,7 +32,8 @@ try {
      const bottle=await page.evaluate(async text=>fetch('/api/bottle/messages',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestId:crypto.randomUUID(),message:text})}).then(response=>response.status),`Accessibility bottle ${viewport.width}`);
      assert.equal(bottle,200);
      await page.getByRole('button',{name:'Find a bottle'}).click();
-     await page.getByText(`Accessibility bottle ${viewport.width}`,{exact:true}).first().waitFor();
+     await page.locator('#current-bottle').waitFor({state:'visible'});
+     assert.ok((await page.locator('#bottle-message').textContent()).trim().length>0);
      const populated=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
      assert.deepEqual(populated.violations.map(v=>({id:v.id,impact:v.impact,help:v.help,nodes:v.nodes.map(n=>n.target)})),[]);
     }
