@@ -55,15 +55,15 @@ import SpaceLayout from '../layouts/SpaceLayout.astro';
   .discovery { min-height: 280px; display: flex; flex-direction: column; align-items: stretch; justify-content: center; padding: 28px 0 22px; }
   .reading-empty, .found-bottle { min-height: 185px; margin: 0; padding: 26px 0; border-top: 1px solid var(--ow-border); border-bottom: 1px solid var(--ow-border); background: transparent; }
   .reading-empty { display: grid; place-items: center; color: var(--ow-muted); text-align: center; }
-  .found-bottle { display: flex; flex-direction: column; justify-content: center; gap: 24px; }
-  .bottle-message { margin: 0; color: var(--ow-text); font-size: clamp(17px, 2.5vw, 20px); line-height: 1.65; overflow-wrap: anywhere; white-space: pre-wrap; }
+  .found-bottle { display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+  .bottle-message { margin: 0; color: var(--ow-text); font-size: clamp(18px, 2.4vw, 21px); line-height: 1.55; overflow-wrap: anywhere; white-space: pre-wrap; }
   .bottle-byline { min-height: 18px; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; color: var(--ow-muted); font-size: 12px; }
   .bottle-signature { overflow-wrap: anywhere; }
   .bottle-signature:not(:empty)::before { content: '— '; }
   .bottle-byline time { font-size: 11px; font-variant-numeric: tabular-nums; }
-  .find-feedback { min-height: 18px; margin: 7px 0 4px; color: var(--ow-muted); font-size: 12px; }
+  .find-feedback { margin: 0; color: var(--ow-muted); font-size: 12px; line-height: 1.4; }
   .find-feedback[data-state="error"] { color: #8b4936; }
-  .find-button { align-self: flex-start; min-height: 38px; height: auto; padding: 5px 12px; }
+  .find-button { align-self: flex-start; min-height: 38px; height: auto; margin-top: 7px; padding: 5px 12px; }
 
   .release-form { display: grid; gap: 7px; padding-top: 10px; }
   .release-form > label { color: #4d4d4d; font-size: 12px; }
@@ -75,7 +75,7 @@ import SpaceLayout from '../layouts/SpaceLayout.astro';
   .release-row input { flex: 1; height: 40px; padding: 7px 9px; }
   .release-row button { min-width: 116px; height: 40px; padding: 0 10px; }
   .release-row button:disabled, .find-button:disabled { cursor: wait; opacity: .65; }
-  .release-feedback { min-height: 18px; margin: 0 1px; color: var(--ow-muted); font-size: 12px; line-height: 1.4; }
+  .release-feedback { margin: 0 1px; color: var(--ow-muted); font-size: 12px; line-height: 1.4; }
   .release-feedback[data-state="error"], .release-feedback[data-state="cooldown"] { color: #8b4936; }
   .release-feedback[data-state="success"] { color: #365a3d; }
 
@@ -83,7 +83,7 @@ import SpaceLayout from '../layouts/SpaceLayout.astro';
     .bottle { padding-top: max(54px, calc(env(safe-area-inset-top) + 42px)); padding-right: max(14px, env(safe-area-inset-right)); padding-left: max(14px, env(safe-area-inset-left)); }
     .discovery { padding-top: 22px; }
     .reading-empty, .found-bottle { min-height: 170px; padding-block: 20px; }
-    .bottle-message { font-size: 17px; }
+    .bottle-message { font-size: 18px; }
     .release-row button { min-width: 108px; padding-inline: 8px; }
   }
   @media (max-width: 340px) {

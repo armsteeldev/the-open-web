@@ -61,11 +61,11 @@ function showBottle(bottle: Bottle): void {
   findButton.textContent = 'Find another';
 }
 
-function showReadingMessage(text: string): void {
+function showReadingMessage(text: string, buttonLabel = 'Find a bottle'): void {
   currentBottle.hidden = true;
   emptyState.textContent = text;
   emptyState.hidden = false;
-  findButton.textContent = 'Find a bottle';
+  findButton.textContent = buttonLabel;
 }
 
 function beginReleaseCooldown(milliseconds: number, message: (seconds: number) => string, state: string): void {
@@ -77,7 +77,7 @@ function beginReleaseCooldown(milliseconds: number, message: (seconds: number) =
       if (releaseTimer !== undefined) window.clearInterval(releaseTimer);
       releaseTimer = undefined;
       releaseButton.disabled = inFlight;
-      setFeedback(releaseFeedback, 'You can release a bottle now.', 'success');
+      setFeedback(releaseFeedback, '');
       return;
     }
     releaseButton.disabled = true;
@@ -113,9 +113,9 @@ findButton.addEventListener('click', async () => {
     } else if (data.exhausted) {
       recentIds = [];
       saveRecentIds();
-      showReadingMessage('No unseen bottles just now. Find again to begin another drift.');
+      showReadingMessage('You’ve found every bottle for now.', 'Find again');
     } else {
-      showReadingMessage('The water is empty. Leave the first bottle for someone to find.');
+      showReadingMessage('No bottles yet. Leave the first one.');
     }
   } catch {
     setFeedback(findFeedback, 'The water is hard to reach right now. Try again in a moment.', 'error');
