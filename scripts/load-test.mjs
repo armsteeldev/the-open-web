@@ -144,8 +144,8 @@ try {
     })));
   }
 
-  // Exercise both spaces at the shared 500-connection ceiling. A chat-only
-  // phase would miss contention and accidental cross-channel delivery.
+  // Exercise both realtime-enabled spaces at the shared 500-connection
+  // ceiling. Bottle deliberately adds no WebSocket clients.
   const wallCount = 400;
   const chatCount = 100;
   const wallVisitors = await Promise.all(Array.from({ length: wallCount }, async () => {

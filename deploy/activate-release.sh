@@ -132,7 +132,7 @@ trap 'exit 143' TERM
 trap 'exit 129' HUP
 
 tar --no-same-owner -xzf "$archive" -C "$staging_dir"
-for expected_path in dist/apps/server/src/index.js dist/apps/server/src/spaces/chat/remove-message.js dist/database/migrations apps/web/dist/wall/index.html apps/web/dist/chat/index.html apps/web/dist/release.json scripts/backup.mjs scripts/test-production.mjs package.json package-lock.json; do
+for expected_path in dist/apps/server/src/index.js dist/apps/server/src/spaces/chat/remove-message.js dist/apps/server/src/spaces/bottle/remove-bottle.js dist/database/migrations apps/web/dist/wall/index.html apps/web/dist/chat/index.html apps/web/dist/bottle/index.html apps/web/dist/release.json scripts/backup.mjs scripts/test-production.mjs package.json package-lock.json; do
   [[ -e $staging_dir/$expected_path ]] || fail "release archive is missing $expected_path"
 done
 manifest=$(cat "$staging_dir/apps/web/dist/release.json")
@@ -173,7 +173,11 @@ page_html=$(curl --fail --silent --show-error --max-time 12 https://open.armstee
 chat_history=$(curl --fail --silent --show-error --max-time 8 https://open.armsteel.dev/api/chat/history) || fail 'public chat history endpoint failed'
 printf '%s' "$chat_history" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s);process.exit(Array.isArray(v.messages)&&Number.isSafeInteger(v.latestId)&&("oldestId" in v)?0:1)}catch{process.exit(1)}})' || fail 'public chat history response was invalid'
 chat_html=$(curl --fail --silent --show-error --max-time 12 https://open.armsteel.dev/chat/)
-[[ $chat_html == *'id="message-input"'* && $chat_html == *'Global Chat'* && $chat_html == *'The Wall'* ]] || fail 'public chat page or shared navigation was incomplete'
+[[ $chat_html == *'id="message-input"'* && $chat_html == *'Global Chat'* && $chat_html == *'The Wall'* && $chat_html == *'Message in a Bottle'* ]] || fail 'public chat page or shared navigation was incomplete'
+bottle_html=$(curl --fail --silent --show-error --max-time 12 https://open.armsteel.dev/bottle/)
+[[ $bottle_html == *'id="release-form"'* && $bottle_html == *'id="find-bottle"'* && $bottle_html == *'The Wall'* && $bottle_html == *'Global Chat'* && $bottle_html == *'Message in a Bottle'* ]] || fail 'public Bottle page or shared navigation was incomplete'
+bottle_result=$(curl --fail --silent --show-error --max-time 8 https://open.armsteel.dev/api/bottle/random) || fail 'public Bottle discovery endpoint failed'
+printf '%s' "$bottle_result" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s);process.exit(v&&typeof v==="object"&&("bottle" in v)&&typeof v.exhausted==="boolean"?0:1)}catch{process.exit(1)}})' || fail 'public Bottle discovery response was invalid'
 
 state_temp=$(mktemp "$root/.previous-release.XXXXXX")
 printf '%s\n' "$previous_release" > "$state_temp"

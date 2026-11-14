@@ -23,6 +23,9 @@ try {
   const chatRedirect = await page.request.get(`${base}/chat`, { maxRedirects: 0 });
   assert.equal(chatRedirect.status(), 308);
   assert.equal(chatRedirect.headers().location, '/chat/');
+  const bottleRedirect = await page.request.get(`${base}/bottle`, { maxRedirects: 0 });
+  assert.equal(bottleRedirect.status(), 308);
+  assert.equal(bottleRedirect.headers().location, '/bottle/');
 
   const response = await page.goto(`${base}/wall/`);
   assert.match(response.headers()['content-security-policy'], /default-src 'self'/);
@@ -76,12 +79,27 @@ try {
   await page.goto(`${base}/chat/`);
   await page.getByText('Connected', { exact: true }).waitFor({ timeout: 15000 });
   await page.locator('.global-menu > summary').click();
-  assert.equal(await page.locator('.global-menu nav a').count(), 2);
+  assert.equal(await page.locator('.global-menu nav a').count(), 3);
   assert.equal(await page.locator('.global-menu nav a[aria-current="page"]').textContent(), 'Global Chat');
   await page.keyboard.press('Escape');
   await page.getByLabel('Message', { exact: true }).fill('compiled HTTPS chat smoke');
   await page.getByLabel('Message', { exact: true }).press('Enter');
   await page.getByText('compiled HTTPS chat smoke', { exact: true }).waitFor();
+
+  await page.goto(`${base}/bottle/`);
+  await page.getByRole('heading', { name: 'Message in a Bottle' }).waitFor();
+  await page.getByLabel('Leave one').fill('compiled HTTPS bottle smoke');
+  await page.getByRole('button', { name: 'Release bottle' }).click();
+  await page.getByText(/Bottle released\. You can leave another bottle in \d+ seconds?\./).waitFor();
+  const bottleReaderContext = await browser.newContext({ viewport: { width: 1000, height: 700 }, ignoreHTTPSErrors: true });
+  const bottleReader = await bottleReaderContext.newPage();
+  await bottleReader.goto(`${base}/bottle/`);
+  await bottleReader.getByRole('button', { name: 'Find a bottle' }).click();
+  await bottleReader.getByText('compiled HTTPS bottle smoke', { exact: true }).waitFor();
+  await bottleReader.locator('.global-menu > summary').click();
+  assert.equal(await bottleReader.locator('.global-menu nav a').count(), 3);
+  assert.equal(await bottleReader.locator('.global-menu nav a[aria-current="page"]').textContent(), 'Message in a Bottle');
+  await bottleReaderContext.close();
 
   assert.deepEqual(errors, []);
   if (process.env.OPEN_WEB_SCREENSHOT) {

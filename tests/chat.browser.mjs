@@ -112,7 +112,7 @@ try {
   const roomBox = await page.locator('.chat-header').boundingBox();
   assert.ok(menuBox && roomBox && menuBox.y >= 0 && menuBox.y + menuBox.height <= roomBox.y, 'the shared spaces menu stays visible above the chat room');
   await page.getByLabel('Spaces', { exact: true }).first().click();
-  assert.equal(await menu.locator('a').count(), 2);
+  assert.equal(await menu.locator('a').count(), 3);
   assert.equal(await menu.getByRole('link', { name: 'Global Chat' }).getAttribute('aria-current'), 'page');
   await page.keyboard.press('Escape');
 

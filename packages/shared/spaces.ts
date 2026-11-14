@@ -14,6 +14,7 @@ export interface SpaceDefinition {
 export const spaces = [
   { id: 'wall', label: 'The Wall', path: '/wall', status: 'active' },
   { id: 'chat', label: 'Global Chat', path: '/chat', status: 'active' },
+  { id: 'bottle', label: 'Message in a Bottle', path: '/bottle', status: 'active' },
 ] as const satisfies readonly SpaceDefinition[];
 
 /** Validate registry data at application startup and in repository checks. */

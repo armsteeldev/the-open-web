@@ -26,6 +26,8 @@ There is no durable event log, replay, shared snapshot format, or cross-process 
 
 The platform uses one Node.js process. Realtime messages are ephemeral and in-memory. Do not add a broker or external service without a separate architecture decision.
 
+Message in a Bottle deliberately does not subscribe to realtime. A release is persisted immediately and the next discovery request sees it; existing readers do not need a live pool update.
+
 ## Global Chat events and synchronization
 
 The chat client opens `/api/events?space=chat` before requesting `/api/chat/history`. It registers the event handler immediately and buffers `message` and `remove` events while history is in flight. The server reads the latest 100 unexpired records and the high-water ID in one SQLite read transaction. The client merges that snapshot with buffered events by stable numeric message ID, applies removal tombstones, sorts by ID, and displays at most 100. This covers commits before, during, or after the history read: commits before the snapshot are in the snapshot; commits after it are buffered from the already-open socket. Duplicate IDs are ignored.

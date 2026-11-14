@@ -78,19 +78,11 @@ try {
         href: element.getAttribute('href'),
         current: element.getAttribute('aria-current'),
       })));
-      assert.equal(links.length, 2, 'the menu lists both active spaces');
-      const currentName = expectedPath === '/wall' ? 'The Wall' : 'Global Chat';
-      const otherName = expectedPath === '/wall' ? 'Global Chat' : 'The Wall';
-      assert.deepEqual(links.find(link => link.text === currentName), {
-        text: currentName,
-        href: expectedPath,
-        current: 'page',
-      });
-      assert.deepEqual(links.find(link => link.text === otherName), {
-        text: otherName,
-        href: expectedPath === '/wall' ? '/chat' : '/wall',
-        current: null,
-      });
+      assert.deepEqual(links, [
+        { text: 'The Wall', href: '/wall', current: expectedPath === '/wall' ? 'page' : null },
+        { text: 'Global Chat', href: '/chat', current: expectedPath === '/chat' ? 'page' : null },
+        { text: 'Message in a Bottle', href: '/bottle', current: expectedPath === '/bottle' ? 'page' : null },
+      ]);
     }
 
     await assertMenuVisible('/wall');
@@ -128,6 +120,14 @@ try {
     await page.keyboard.press('Escape');
     assert.equal(await menu.evaluate(element => element.open), false);
     assert.equal(await trigger.evaluate(element => document.activeElement === element), true);
+
+    if (viewport.touch) await trigger.tap();
+    else await trigger.click();
+    assert.equal(await menu.evaluate(element => element.open), true);
+    await panel.getByRole('link', { name: 'Message in a Bottle' }).click();
+    await page.waitForURL(url => new URL(url).pathname.replace(/\/$/, '') === '/bottle');
+    assert.equal(await menu.evaluate(element => element.open), false);
+    await assertMenuVisible('/bottle');
 
     if (viewport.touch) await trigger.tap();
     else await trigger.click();

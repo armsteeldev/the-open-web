@@ -89,7 +89,7 @@ sudo -u open-web env DB_PATH=/var/lib/the-open-web/open-web.sqlite \
 
 Replace the database path with the active `DB_PATH` from the service environment and `123` with the target message ID. The command checks that the Chat schema exists, uses a bounded SQLite transaction, removes the row, and writes an ID-only tombstone. Connected browsers receive a `remove` event on maintenance; reconnecting browsers receive a fresh history without the message. A short idempotency record remains so retries cannot restore removed content. The command does not log text. Do not edit the database manually.
 
-For a complete write stop, use the shared `WRITE_GATE_PATH` or `WRITES_ENABLED=false`; that stops writes across both spaces. Keep the existing release backup and rollback procedure in [DEPLOYMENT.md](DEPLOYMENT.md).
+For a complete write stop, use the shared `WRITE_GATE_PATH` or `WRITES_ENABLED=false`; that stops writes across all active spaces. Keep the existing release backup and rollback procedure in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Tests and maintenance
 

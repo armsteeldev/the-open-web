@@ -1,0 +1,97 @@
+---
+import SpaceLayout from '../layouts/SpaceLayout.astro';
+---
+<SpaceLayout title="Message in a Bottle — The Open Web">
+  <main class="bottle" id="bottle" aria-label="Message in a Bottle">
+    <header class="bottle-header">
+      <h1>Message in a Bottle</h1>
+    </header>
+
+    <section class="discovery" aria-label="Find a bottle">
+      <p id="empty-state" class="reading-empty" aria-live="polite">Find a bottle to read it here.</p>
+      <article id="current-bottle" class="found-bottle" aria-label="Found bottle" hidden>
+        <p id="bottle-message" class="bottle-message"></p>
+        <footer class="bottle-byline">
+          <span id="bottle-signature" class="bottle-signature" hidden></span>
+          <time id="bottle-time"></time>
+        </footer>
+      </article>
+      <p id="find-feedback" class="find-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
+      <button id="find-bottle" class="find-button" type="button">Find a bottle</button>
+    </section>
+
+    <form id="release-form" class="release-form">
+      <label for="message-input">Leave one</label>
+      <textarea id="message-input" name="message" maxlength="500" rows="4" placeholder="Write a message to send away" aria-describedby="release-feedback"></textarea>
+      <div class="release-row">
+        <label class="visually-hidden" for="signature-input">Optional signature</label>
+        <input id="signature-input" name="signature" type="text" maxlength="48" autocomplete="off" placeholder="Sign it (optional)" />
+        <button id="release-bottle" type="submit">Release bottle</button>
+      </div>
+      <p id="release-feedback" class="release-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
+    </form>
+  </main>
+  <script>import '../spaces/bottle/client';</script>
+</SpaceLayout>
+
+<style is:global>
+  .bottle {
+    width: min(620px, 100%);
+    min-height: 100vh;
+    min-height: 100svh;
+    margin: 0 auto;
+    padding: max(54px, calc(env(safe-area-inset-top) + 42px)) max(18px, env(safe-area-inset-right)) max(24px, calc(env(safe-area-inset-bottom) + 16px)) max(18px, env(safe-area-inset-left));
+    display: grid;
+    grid-template-rows: auto minmax(280px, 1fr) auto;
+    --ow-muted: #555;
+    color: var(--ow-text);
+  }
+  .bottle * { box-sizing: border-box; }
+  .bottle [hidden] { display: none !important; }
+  .bottle .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+  .bottle-header { padding-left: 32px; }
+  .bottle-header h1 { margin: 0; color: #444; font-size: 14px; font-weight: 500; }
+
+  .discovery { min-height: 280px; display: flex; flex-direction: column; align-items: stretch; justify-content: center; padding: 28px 0 22px; }
+  .reading-empty, .found-bottle { min-height: 185px; margin: 0; padding: 26px 0; border-top: 1px solid var(--ow-border); border-bottom: 1px solid var(--ow-border); background: transparent; }
+  .reading-empty { display: grid; place-items: center; color: var(--ow-muted); text-align: center; }
+  .found-bottle { display: flex; flex-direction: column; justify-content: center; gap: 24px; }
+  .bottle-message { margin: 0; color: var(--ow-text); font-size: clamp(17px, 2.5vw, 20px); line-height: 1.65; overflow-wrap: anywhere; white-space: pre-wrap; }
+  .bottle-byline { min-height: 18px; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; color: var(--ow-muted); font-size: 12px; }
+  .bottle-signature { overflow-wrap: anywhere; }
+  .bottle-signature:not(:empty)::before { content: '— '; }
+  .bottle-byline time { font-size: 11px; font-variant-numeric: tabular-nums; }
+  .find-feedback { min-height: 18px; margin: 7px 0 4px; color: var(--ow-muted); font-size: 12px; }
+  .find-feedback[data-state="error"] { color: #8b4936; }
+  .find-button { align-self: flex-start; min-height: 38px; height: auto; padding: 5px 12px; }
+
+  .release-form { display: grid; gap: 7px; padding-top: 10px; }
+  .release-form > label { color: #4d4d4d; font-size: 12px; }
+  .release-form textarea, .release-row input { width: 100%; min-width: 0; border: 1px solid var(--ow-border); border-radius: 2px; background: var(--ow-surface); color: var(--ow-text); font: inherit; font-size: 16px; }
+  .release-form textarea { min-height: 112px; resize: vertical; padding: 9px 10px; line-height: 1.45; }
+  .release-form textarea:focus-visible, .release-row input:focus-visible { outline: 2px solid var(--ow-focus); outline-offset: 1px; }
+  .release-form textarea::placeholder, .release-row input::placeholder { color: #666; opacity: 1; }
+  .release-row { display: flex; align-items: stretch; gap: 6px; }
+  .release-row input { flex: 1; height: 40px; padding: 7px 9px; }
+  .release-row button { min-width: 116px; height: 40px; padding: 0 10px; }
+  .release-row button:disabled, .find-button:disabled { cursor: wait; opacity: .65; }
+  .release-feedback { min-height: 18px; margin: 0 1px; color: var(--ow-muted); font-size: 12px; line-height: 1.4; }
+  .release-feedback[data-state="error"], .release-feedback[data-state="cooldown"] { color: #8b4936; }
+  .release-feedback[data-state="success"] { color: #365a3d; }
+
+  @media (max-width: 480px) {
+    .bottle { padding-top: max(54px, calc(env(safe-area-inset-top) + 42px)); padding-right: max(14px, env(safe-area-inset-right)); padding-left: max(14px, env(safe-area-inset-left)); }
+    .discovery { padding-top: 22px; }
+    .reading-empty, .found-bottle { min-height: 170px; padding-block: 20px; }
+    .bottle-message { font-size: 17px; }
+    .release-row button { min-width: 108px; padding-inline: 8px; }
+  }
+  @media (max-width: 340px) {
+    .bottle { padding-right: max(10px, env(safe-area-inset-right)); padding-left: max(10px, env(safe-area-inset-left)); }
+    .release-row { gap: 5px; }
+    .release-row button { min-width: 102px; font-size: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bottle *, .bottle *::before, .bottle *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  }
+</style>

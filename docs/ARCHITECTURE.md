@@ -1,6 +1,6 @@
 # Architecture
 
-The Open Web is one shared platform with independently implemented spaces. The Wall and Global Chat are active. Space registration is explicit and static; there is no dynamic module loader or separate service per space.
+The Open Web is one shared platform with independently implemented spaces. The Wall, Global Chat, and Message in a Bottle are active. Space registration is explicit and static; there is no dynamic module loader or separate service per space.
 
 ```mermaid
 flowchart LR
@@ -13,16 +13,21 @@ flowchart LR
   WallAPI[Wall server module]
   ChatUI[Chat frontend]
   ChatAPI[Chat server module]
+  BottleUI[Bottle frontend]
+  BottleAPI[Bottle server module]
   Registry --> Shell
   Registry --> Core
   Shell --> WallUI
   Shell --> ChatUI
+  Shell --> BottleUI
   Core --> WallAPI
   Core --> ChatAPI
+  Core --> BottleAPI
   WallAPI --> DB
   WallAPI --> Realtime
   ChatAPI --> DB
   ChatAPI --> Realtime
+  BottleAPI --> DB
 ```
 
 ## Shared platform and space ownership
@@ -58,5 +63,7 @@ Realtime is ephemeral. The platform does not persist events or replay them after
 The Wall remains a 2,000 × 2,000 canvas divided into 100 × 100 tiles. Palette, 10-second cooldown, overwrite behavior, route paths, event shape, and existing database data are unchanged. Its HTTP endpoints are `/api/wall/tile/:x/:y` and `/api/wall/pixel`; its realtime events remain `{v:1,space:"wall",type:"pixel",x,y,color}`.
 
 Global Chat owns `/chat`, `/api/chat/history`, `/api/chat/messages`, and its `chat_*` tables. It persists recent plain-text messages and uses a snapshot plus buffered events on connect; reconnect always takes a fresh history snapshot. Details and operator procedures are in [GLOBAL-CHAT.md](GLOBAL-CHAT.md).
+
+Message in a Bottle owns `/bottle`, `/api/bottle/random`, `/api/bottle/messages`, and its `bottle_*` tables. It stores up to 10,000 plain-text bottles, selects one with SQLite randomness, and uses a bounded browser-local list of recently seen IDs to reduce repeats. It does not use realtime. Details, retention, privacy, and operator removal are in [BOTTLE.md](BOTTLE.md).
 
 See [ADDING-A-SPACE.md](ADDING-A-SPACE.md) for the end-to-end implementation sequence, [DATABASE.md](DATABASE.md) for migration and recovery rules, and [DEPLOYMENT.md](DEPLOYMENT.md) for production release gates.

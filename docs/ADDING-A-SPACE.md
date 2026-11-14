@@ -79,7 +79,7 @@ The digest is a pseudonymous bearer identifier, not proof of one human. Visitors
 
 ## 5. Add only the data the space needs
 
-Put queries and transactions in `apps/server/src/spaces/example/database.ts`. Add the next consecutive, three-digit migration to `database/migrations`, named with the owner and purpose, for example `004_example_records.sql` after the current migration 003. Migration files already released are immutable. Do not add tables for planned but unbuilt spaces.
+Put queries and transactions in `apps/server/src/spaces/example/database.ts`. Add the next consecutive, three-digit migration to `database/migrations`, named with the owner and purpose, for example `005_example_records.sql` after migration 004. Migration files already released are immutable. Do not add tables for planned but unbuilt spaces.
 
 Prefix new tables and indexes with the space ID, use `STRICT` tables, explicit constraints and indexes for real query paths, and keep writes transactional. The database migration runner applies each new file in a transaction and records its version. A failed migration rolls back and prevents startup. The Wall's existing `wall_tiles` and `visitor_cooldowns` tables are legacy names and must not be renamed or rewritten by a new space.
 
