@@ -2,6 +2,8 @@
 
 Message in a Bottle is an asynchronous public space at `/bottle`. A visitor can release a short plain-text message and later find one chosen at random. It has no feed, search, reactions, public identity, realtime connection, or account system. An optional signature is self-declared text and does not verify who wrote the bottle.
 
+Production rollout must deploy the migration-004 compatibility bridge before this Bottle release. The bridge adds no tables; it lets the existing Wall and Chat application validate and open this exact additive schema if Bottle activation or a later code rollback returns to it. Follow [ROLLBACK-COMPATIBILITY.md](ROLLBACK-COMPATIBILITY.md) in order.
+
 ## Visitor behavior
 
 - **Find a bottle** requests one random retained message. The page never loads a list or a chronological history.

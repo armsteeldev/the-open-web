@@ -4,7 +4,7 @@ Production is on a release that knows migrations 001–003. It cannot be the rol
 
 ## Required order
 
-1. Deploy the compatibility bridge at `origin/codex/bottle-rollback-bridge` while production still has schema 003. This release contains the normal Wall and Chat application and the explicit migration-004 compatibility check. It does not include or apply migration 004.
+1. Deploy compatibility commit `48fc099192b9c4a783628c261e8fd6d58be8edcd` from `origin/codex/bottle-rollback-bridge` while production still has schema 003. This release contains the normal Wall and Chat application and the explicit migration-004 compatibility check. It does not include or apply migration 004.
 2. Verify the bridge commit in the public release manifest and check local/public health. Its activation creates the regular verified SQLite backup.
 3. From a clean checkout of `main`, deploy the Bottle release with `npm run release`. Activation refuses before backup or switching if migration 004 is present in the candidate but the current release's compiled migration runner lacks the Bottle compatibility fingerprint.
 

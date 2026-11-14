@@ -18,6 +18,8 @@ npm run release -- --check-only
 
 The check-only command verifies and packages the commit without contacting the production service or changing production. The activation path in `npm run release` then checks host health, service configuration, backup-device separation, backup-directory ownership and permissions, available space, and the fresh SQLite backup before switching releases. Chromium is detected automatically; set `CHROMIUM_PATH` only if it is installed in a nonstandard location.
 
+Bottle migration 004 requires a compatibility-first release sequence. Deploy and verify the compatibility bridge before deploying the Bottle commit; activation now refuses a migration-004 candidate when the active release cannot validate that exact schema on rollback. See [ROLLBACK-COMPATIBILITY.md](ROLLBACK-COMPATIBILITY.md) for the bridge commit and guarded two-step commands.
+
 To choose a different approved backup directory:
 
 ```sh
@@ -30,7 +32,7 @@ The default is `/mnt/continental-cloud/backups/the-open-web`. The activation ste
 
 The privileged activation helper reads `PORT` and `DB_PATH` from the running service, checks local and public health before deployment, installs only production dependencies into a staged release, and runs the compiled production smoke test against a disposable database. It makes the release readable to the service and Caddy, then removes write permission. It backs up the active SQLite database, atomically switches `/opt/the-open-web/current`, and restarts only `the-open-web`.
 
-Readiness checks poll for up to 60 seconds after restart. They require a healthy local and public API, a public release manifest that matches the full commit ID, a numeric cooldown duration from the session API, the expected Wall controls, a valid Chat history response, the Bottle page and read-only discovery response, and all three navigation entries. If activation fails after switching, the helper restores the prior symlink, restarts the prior release, and checks health again. It retains the verified backup. Deployment and rollback share a lock so they cannot run at the same time.
+Readiness checks poll for up to 60 seconds after restart. They require the service process working directory to match the selected immutable release, healthy local and public APIs, a public release manifest that matches the full commit ID, a numeric cooldown duration from the session API, the expected Wall controls, a valid Chat history response, the Bottle page and read-only discovery response, and all three navigation entries. If activation or manual rollback fails after switching, the helper restores the prior symlink and reports recovery only after systemd, the actual process directory, local/public health, and public manifest all match the restored release. It retains the verified backup. Deployment and rollback share a lock so they cannot run at the same time.
 
 The exact production hostname is `https://open.armsteel.dev`; Caddy forwards API requests to loopback port `4323`. The activation script reads the actual configured port and database path from the running service rather than assuming either value. Application-only releases do not reload Caddy.
 
@@ -42,7 +44,7 @@ The activation helper records the previous immutable release. To switch back to 
 npm run rollback
 ```
 
-This asks for sudo, atomically changes `current`, restarts only the app, and checks health. If the rollback release fails readiness, it restores the release that was active before the rollback. Code rollback does not restore or replace the database. Schema changes must remain compatible with the preceding release; restoring a database is a separate recovery decision described in [BACKUPS.md](BACKUPS.md).
+This asks for sudo, atomically changes `current`, restarts only the app, and verifies the selected process, health, and public manifest. If the rollback release fails readiness, it restores the release that was active before the rollback and verifies it before reporting recovery. Code rollback does not restore or replace the database. Schema changes must remain compatible with the preceding release; restoring a database is a separate recovery decision described in [BACKUPS.md](BACKUPS.md).
 
 ## Production baseline checked for the multi-space foundation
 
