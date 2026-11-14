@@ -66,7 +66,7 @@ npm run lint
 npm run typecheck
 npm test
 npm run build
-for script in deploy/release.sh deploy/activate-release.sh deploy/rollback-release.sh; do bash -n "$script"; done
+for script in deploy/release.sh deploy/activate-release.sh deploy/rollback-release.sh deploy/release-recovery.sh; do bash -n "$script"; done
 npm run test:browser
 npm run test:production
 npm run test:built
