@@ -2,25 +2,8 @@
 set -Eeuo pipefail
 
 fail() { printf 'STOP: %s\n' "$*" >&2; exit 1; }
-wait_for_health() {
-  local endpoint=$1 attempts=${2:-60} attempt response
-  for ((attempt=1; attempt<=attempts; attempt++)); do
-    if response=$(curl --fail --silent --max-time 2 "$endpoint" 2>/dev/null) &&
-       printf '%s' "$response" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{process.exit(JSON.parse(s).ok===true?0:1)}catch{process.exit(1)}})' >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 1
-  done
-  return 1
-}
-wait_for_manifest() {
-  local endpoint=$1 expected=$2 attempts=${3:-60} attempt response
-  for ((attempt=1; attempt<=attempts; attempt++)); do
-    if response=$(curl --fail --silent --max-time 3 "$endpoint" 2>/dev/null) && [[ $response == "$expected" ]]; then return 0; fi
-    sleep 1
-  done
-  return 1
-}
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+source "$script_dir/release-recovery.sh"
 
 [[ $EUID -eq 0 ]] || fail 'activation requires root; invoke through sudo from deploy/release.sh'
 [[ $# -eq 4 ]] || fail 'usage: activate-release.sh ARCHIVE COMMIT SHA256 BACKUP_DIR'
@@ -60,12 +43,17 @@ done < <(tr '\0' '\n' < "/proc/$main_pid/environ")
 [[ $app_port =~ ^[0-9]{1,5}$ ]] && (( app_port >= 1 && app_port <= 65535 )) || fail 'active service PORT is missing or invalid'
 local_health=http://127.0.0.1:$app_port/api/health
 public_health=https://open.armsteel.dev/api/health
+public_manifest=https://open.armsteel.dev/release.json
 release_dir=$release_root/$commit
 expected_manifest="{\"commit\":\"$commit\"}"
+previous_manifest_file=$previous_release/apps/web/dist/release.json
+[[ -f $previous_manifest_file ]] || fail 'previous release has no release manifest for recovery verification'
+previous_manifest=$(<"$previous_manifest_file")
 if [[ $previous_release == "$release_dir" ]]; then
+  wait_for_runtime_release "$release_dir" || fail 'current service process is not running from its release directory'
   wait_for_health "$local_health" || fail 'current release is not healthy'
   wait_for_health "$public_health" || fail 'current public service is not healthy'
-  wait_for_manifest https://open.armsteel.dev/release.json "$expected_manifest" 5 || fail 'current public release manifest does not match its symlink'
+  wait_for_manifest "$public_manifest" "$expected_manifest" 5 || fail 'current public release manifest does not match its symlink'
   printf 'Already active and healthy: %s\n' "$commit"
   exit 0
 fi
@@ -94,31 +82,25 @@ switched=0
 release_installed=0
 safe_to_remove=1
 temporary_link=
-rollback_link=
 state_temp=
 finish() {
   local result=$?
   trap - EXIT
   if (( result != 0 && switched == 1 )); then
     printf 'Activation failed; restoring %s and checking recovery\n' "$previous_release" >&2
-    if [[ $(readlink -f "$current" 2>/dev/null || true) == "$release_dir" ]]; then
-      rollback_link=$root/.current.rollback.$$
-      if ln -s "$previous_release" "$rollback_link" && mv -Tf "$rollback_link" "$current" && systemctl restart the-open-web && systemctl is-active --quiet the-open-web && wait_for_health "$local_health" && wait_for_health "$public_health"; then
-        safe_to_remove=1
-        printf 'Rollback complete; prior release is healthy. The verified backup was retained.\n' >&2
-      else
-        safe_to_remove=0
-        printf 'Rollback or its health checks failed. Inspect the service immediately.\n' >&2
-      fi
-    elif [[ $(readlink -f "$current" 2>/dev/null || true) == "$previous_release" ]]; then
+    if recover_release "$root" "$current" "$release_dir" "$previous_release" \
+      "$local_health" "$public_health" "$public_manifest" "$previous_manifest"; then
       safe_to_remove=1
+      printf 'Automatic rollback complete; the prior release process and public manifest are verified. The verified backup was retained.\n' >&2
+    elif [[ $(readlink -f "$current" 2>/dev/null || true) == "$previous_release" ]]; then
+      safe_to_remove=0
+      printf 'The prior release is selected but recovery was not verified. Inspect the service immediately.\n' >&2
     else
       safe_to_remove=0
-      printf 'Current target changed unexpectedly; automatic rollback refused. Inspect it immediately.\n' >&2
+      printf 'Automatic rollback failed or refused. Inspect the service immediately.\n' >&2
     fi
   fi
   if [[ -n $temporary_link && -L $temporary_link ]]; then rm -f -- "$temporary_link"; fi
-  if [[ -n $rollback_link && -L $rollback_link ]]; then rm -f -- "$rollback_link"; fi
   if [[ -n $state_temp && -f $state_temp ]]; then rm -f -- "$state_temp"; fi
   if [[ -n $staging_dir && -d $staging_dir ]]; then rm -rf -- "$staging_dir"; fi
   if (( result != 0 && release_installed == 1 && safe_to_remove == 1 )) && [[ $(readlink -f "$current" 2>/dev/null || true) != "$release_dir" ]]; then
@@ -137,6 +119,7 @@ for expected_path in dist/apps/server/src/index.js dist/apps/server/src/spaces/c
 done
 manifest=$(cat "$staging_dir/apps/web/dist/release.json")
 [[ $manifest == "$expected_manifest" ]] || fail 'release manifest does not match the verified Git commit'
+require_rollback_compatibility "$staging_dir" "$previous_release" || fail 'the active release is not a safe rollback target for migration 004'
 chown -R root:root "$staging_dir"
 npm --prefix "$staging_dir" ci --omit=dev --ignore-scripts --no-audit --no-fund
 npm --prefix "$staging_dir" run test:production
@@ -162,9 +145,10 @@ mv -Tf "$temporary_link" "$current"
 temporary_link=
 systemctl restart the-open-web
 systemctl is-active --quiet the-open-web || fail 'service did not remain active after restart'
+wait_for_runtime_release "$release_dir" || fail 'service process is not running from the activated release directory'
 wait_for_health "$local_health" || fail "local health check did not recover on port $app_port"
 wait_for_health "$public_health" || fail 'public health check did not recover'
-wait_for_manifest https://open.armsteel.dev/release.json "$expected_manifest" || fail 'public release manifest did not match the activated commit'
+wait_for_manifest "$public_manifest" "$expected_manifest" || fail 'public release manifest did not match the activated commit'
 
 public_session=$(curl --fail --silent --show-error --max-time 8 https://open.armsteel.dev/api/session)
 printf '%s' "$public_session" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const value=JSON.parse(s);process.exit(Number.isFinite(value.retryAfterMs)?0:1)}catch{process.exit(1)}})' || fail 'public session API did not return a numeric cooldown duration'
