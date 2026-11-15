@@ -39,13 +39,27 @@ wait_for_runtime_release() {
 require_rollback_compatibility() {
   local candidate_release=$1 previous_release=$2
   local bottle_schema_fingerprint=990f41588a6c25778e5d2f1d5ba475da8797298021b429e354929c6b509be47e
-  local migration_file=$candidate_release/dist/database/migrations/004_bottle_messages.sql
+  local expansion_schema_fingerprint=de82a92961340220f02c40369d87637ffd1b65f9a890fa3537905ad987b9e229
+  local final_spaces_schema_fingerprint=718a3c10db4694071153003263cd695a6d322b6bf5bbce45d8bc379dabb8a046
   local previous_database_code=$previous_release/dist/apps/server/src/db.js
 
-  [[ ! -f $migration_file ]] && return 0
-  if [[ ! -f $previous_database_code ]] || ! grep -Fq "$bottle_schema_fingerprint" "$previous_database_code"; then
-    printf 'Release requires Bottle migration 004, but the current release cannot validate that schema on rollback. Deploy the compatibility bridge first.\n' >&2
-    return 1
+  if [[ -f $candidate_release/dist/database/migrations/004_bottle_messages.sql ]]; then
+    if [[ ! -f $previous_database_code ]] || ! grep -Fq "$bottle_schema_fingerprint" "$previous_database_code"; then
+      printf 'Release requires Bottle migration 004, but the current release cannot validate that schema on rollback. Deploy the compatibility bridge first.\n' >&2
+      return 1
+    fi
+  fi
+  if [[ -f $candidate_release/dist/database/migrations/005_expansion_phase_one.sql ]]; then
+    if [[ ! -f $previous_database_code ]] || ! grep -Fq "$expansion_schema_fingerprint" "$previous_database_code"; then
+      printf 'Release requires expansion migration 005, but the current release cannot validate that schema on rollback. Deploy the expansion compatibility bridge first.\n' >&2
+      return 1
+    fi
+  fi
+  if [[ -f $candidate_release/dist/database/migrations/006_final_spaces.sql ]]; then
+    if [[ ! -f $previous_database_code ]] || ! grep -Fq "$final_spaces_schema_fingerprint" "$previous_database_code"; then
+      printf 'Release requires final-spaces migration 006, but the current release cannot validate that schema on rollback. Deploy the final-expansion compatibility bridge first.\n' >&2
+      return 1
+    fi
   fi
 }
 

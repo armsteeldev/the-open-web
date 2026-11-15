@@ -19,9 +19,9 @@ test('ordered migrations upgrade existing data and fail closed on newer schemas'
   const advanced=join(root,'advanced');mkdirSync(advanced);
   for(const name of ['001_initial.sql','002_cooldown_retention.sql','003_chat_messages.sql'])writeFileSync(join(advanced,name),readFileSync(new URL(`../database/migrations/${name}`,import.meta.url)));
   writeFileSync(join(advanced,'004_bottle_messages.sql'),readFileSync(new URL('./fixtures/004_bottle_messages.sql',import.meta.url)));
-  for(let version=5;version<=10;version++)writeFileSync(join(advanced,`${String(version).padStart(3,'0')}_extra.sql`),'SELECT 1;');
-  db=openDb(path,pathToFileURL(advanced+'/'));assert.equal(db.prepare('SELECT MAX(version) version FROM migrations').get()!.version,10);db.close();
-  assert.throws(()=>openDb(path,new URL('../database/migrations/',import.meta.url)),/not supported/);
+  writeFileSync(join(advanced,'005_unknown.sql'),'CREATE TABLE draw_unknown_schema (id INTEGER PRIMARY KEY) STRICT;');
+  assert.throws(()=>openDb(path,pathToFileURL(advanced+'/')),/does not match its known compatibility schema/);
+  db=new DatabaseSync(path);assert.equal(db.prepare('SELECT MAX(version) version FROM migrations').get()!.version,4);assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_schema WHERE name='draw_unknown_schema'").get()!.count,0);db.close();
  } finally {rmSync(root,{recursive:true,force:true});}
 });
 test('failed migrations roll back and malformed tiles cannot be overwritten',()=>{
