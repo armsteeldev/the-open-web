@@ -15,6 +15,10 @@ export const spaces = [
   { id: 'wall', label: 'The Wall', path: '/wall', status: 'active' },
   { id: 'chat', label: 'Global Chat', path: '/chat', status: 'active' },
   { id: 'bottle', label: 'Message in a Bottle', path: '/bottle', status: 'active' },
+  { id: 'guestbook', label: 'Guestbook', path: '/guestbook', status: 'active' },
+  { id: 'story', label: 'The Story', path: '/story', status: 'active' },
+  { id: 'questions', label: 'Open Questions', path: '/questions', status: 'active' },
+  { id: 'choice', label: 'The Choice', path: '/choice', status: 'active' },
 ] as const satisfies readonly SpaceDefinition[];
 
 /** Validate registry data at application startup and in repository checks. */

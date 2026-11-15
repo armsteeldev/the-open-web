@@ -6,6 +6,10 @@ import { activeSpaces, spaces, validateSpaceRegistry, type SpaceDefinition } fro
 import { wallSpace } from './spaces/wall/index.js';
 import { chatSpace } from './spaces/chat/index.js';
 import { bottleSpace } from './spaces/bottle/index.js';
+import { guestbookSpace } from './spaces/guestbook/index.js';
+import { storySpace } from './spaces/story/index.js';
+import { questionsSpace } from './spaces/questions/index.js';
+import { choiceSpace } from './spaces/choice/index.js';
 import type { SpaceContext, SpaceModule } from './spaces/types.js';
 import type { AppOptions } from './config.js';
 import { PLACEMENT_COOLDOWN_MS } from './config.js';
@@ -15,12 +19,14 @@ import { RateLimitService } from './services/rate-limits.js';
 import { writesBlocked } from './services/write-gate.js';
 import { SpaceChannels } from './realtime/channels.js';
 
-const defaultModules: readonly SpaceModule[] = [wallSpace, chatSpace, bottleSpace];
+const defaultModules: readonly SpaceModule[] = [wallSpace, chatSpace, bottleSpace, guestbookSpace, storySpace, questionsSpace, choiceSpace];
 const COMPATIBILITY_ROUTE_OWNER = new Map([['GET /api/session', 'wall']]);
 
 export interface SpaceRegistrationOptions {
   readonly registry?: readonly SpaceDefinition[];
   readonly modules?: readonly SpaceModule[];
+  /** Allows compatibility tests to start an older module set against its released migrations. */
+  readonly databaseMigrations?: URL;
 }
 
 function validateModules(registry: readonly SpaceDefinition[], modules: readonly SpaceModule[]): Map<string, SpaceModule> {
@@ -84,7 +90,7 @@ export async function createApp(opts: AppOptions, registration: SpaceRegistratio
   await app.register(cookie);
   await app.register(websocket, { options: { maxPayload: 1024 } });
 
-  const db = openDb(opts.dbPath);
+  const db = openDb(opts.dbPath, registration.databaseMigrations);
   const identity = createAnonymousIdentity(opts.secure);
   const channels = new SpaceChannels(registeredSpaces.map(space => space.id));
   const rateLimits = new RateLimitService();

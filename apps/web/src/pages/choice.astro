@@ -1,0 +1,130 @@
+---
+import SpaceLayout from '../layouts/SpaceLayout.astro';
+---
+<SpaceLayout title="The Choice — The Open Web" layout="document">
+  <main class="choice" aria-labelledby="choice-title">
+    <header class="choice-heading">
+      <h1 id="choice-title">The Choice</h1>
+    </header>
+
+    <section class="decision" aria-label="Current decision">
+      <p id="choice-empty" class="choice-empty" hidden>Nothing is being decided right now.</p>
+      <div id="active-decision" hidden>
+        <h2 id="decision-question"></h2>
+        <p id="decision-closes" class="decision-closes"></p>
+        <div id="decision-options" class="decision-options" role="group" aria-label="Choose an option">
+          <button type="button" data-choice="a" id="option-a"></button>
+          <button type="button" data-choice="b" id="option-b"></button>
+        </div>
+        <p id="vote-feedback" class="vote-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
+        <section id="choice-results" class="choice-results" aria-label="Current results" hidden>
+          <p id="results-count" class="results-count"></p>
+          <div class="result-row">
+            <div class="result-label"><span id="result-label-a"></span><span id="result-count-a"></span></div>
+            <div class="result-track" role="img" aria-label="Option A share"><span id="result-bar-a"></span></div>
+          </div>
+          <div class="result-row">
+            <div class="result-label"><span id="result-label-b"></span><span id="result-count-b"></span></div>
+            <div class="result-track" role="img" aria-label="Option B share"><span id="result-bar-b"></span></div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <details id="proposal-panel" class="proposal-panel">
+      <summary id="proposal-summary">Suggest a future question</summary>
+      <form id="proposal-form" class="proposal-form">
+        <label for="proposal-question">Question</label>
+        <input id="proposal-question" type="text" maxlength="240" autocomplete="off" placeholder="What should we decide?" />
+        <div class="proposal-options">
+          <div>
+            <label for="proposal-a">First choice</label>
+            <input id="proposal-a" type="text" maxlength="100" autocomplete="off" placeholder="One possibility" />
+          </div>
+          <div>
+            <label for="proposal-b">Second choice</label>
+            <input id="proposal-b" type="text" maxlength="100" autocomplete="off" placeholder="Another possibility" />
+          </div>
+        </div>
+        <p class="proposal-note">One proposal per browser cookie each day. A cleared cookie can suggest again.</p>
+        <button id="proposal-submit" type="submit">Suggest it</button>
+        <p id="proposal-feedback" class="proposal-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
+      </form>
+    </details>
+
+    <details id="archive-panel" class="archive-panel">
+      <summary>Past choices</summary>
+      <ol id="choice-archive" class="choice-archive"></ol>
+      <p id="archive-empty" class="archive-empty" hidden>No decisions have closed yet.</p>
+      <button id="older-decisions" type="button" hidden>Older decisions</button>
+      <p id="archive-feedback" class="proposal-feedback" role="status" aria-live="polite"></p>
+    </details>
+  </main>
+  <script>import '../spaces/choice/client';</script>
+</SpaceLayout>
+
+<style is:global>
+  .choice { width: min(100%, 760px); min-height: 100vh; min-height: 100svh; margin: 0 auto; padding: max(55px, calc(env(safe-area-inset-top) + 44px)) max(20px, env(safe-area-inset-right)) max(44px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
+  .choice *, .choice *::before, .choice *::after { box-sizing: border-box; }
+  .choice [hidden] { display: none !important; }
+  .choice-heading { margin: 0 0 48px; padding-left: 38px; }
+  .choice-heading h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  .decision { min-height: 220px; display: grid; place-items: center; }
+  .decision > div { width: min(100%, 620px); }
+  .decision h2 { margin: 0; color: #30302f; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(23px, 4vw, 32px); font-weight: 400; line-height: 1.4; text-align: center; overflow-wrap: anywhere; }
+  .decision-closes { margin: 12px 0 27px; color: var(--ow-muted); font-size: 12px; text-align: center; }
+  .decision-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .decision-options button { min-height: 62px; height: auto; padding: 12px 14px; border-color: #a5a5a5; background: var(--ow-surface); font-family: Georgia, 'Times New Roman', serif; font-size: 16px; line-height: 1.4; overflow-wrap: anywhere; }
+  .decision-options button:hover { background: #f0f0ed; }
+  .decision-options button[aria-pressed="true"] { border-color: #63726b; background: #e7ebe7; box-shadow: inset 0 0 0 1px #63726b; }
+  .choice-empty { width: 100%; margin: 0; padding: 40px 12px; color: var(--ow-muted); border-top: 1px solid #b5b5b5; border-bottom: 1px solid #b5b5b5; text-align: center; }
+  .vote-feedback { min-height: 19px; margin: 8px 0 0; color: var(--ow-muted); font-size: 12px; text-align: center; }
+  .vote-feedback[data-state="error"] { color: #8b4936; }
+  .choice-results { margin-top: 16px; padding-top: 13px; border-top: 1px solid #b5b5b5; }
+  .results-count { margin: 0 0 11px; color: var(--ow-muted); font-size: 11px; text-align: center; }
+  .result-row + .result-row { margin-top: 10px; }
+  .result-label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 4px; font-size: 12px; }
+  .result-label span:first-child { overflow-wrap: anywhere; }
+  .result-label span:last-child { flex: 0 0 auto; color: var(--ow-muted); font-variant-numeric: tabular-nums; }
+  .result-track { height: 7px; overflow: hidden; background: #c8c8c5; }
+  .result-track span { display: block; width: 0; height: 100%; background: #697a70; }
+  .proposal-panel, .archive-panel { width: min(100%, 620px); margin: 39px auto 0; padding-top: 11px; border-top: 1px solid #b5b5b5; }
+  .proposal-panel > summary, .archive-panel > summary { display: inline-flex; align-items: center; min-height: 32px; height: auto; padding: 4px 2px; border: 0; background: transparent; color: #555; cursor: pointer; list-style: none; }
+  .proposal-panel > summary::-webkit-details-marker, .archive-panel > summary::-webkit-details-marker { display: none; }
+  .proposal-panel > summary::before { content: '＋'; margin-right: 7px; color: var(--ow-muted); }
+  .proposal-panel[open] > summary::before { content: '−'; }
+  .archive-panel > summary::before { content: '›'; margin-right: 7px; color: var(--ow-muted); }
+  .archive-panel[open] > summary::before { content: '⌄'; }
+  .proposal-panel summary:focus-visible, .archive-panel summary:focus-visible { outline: 2px solid var(--ow-focus); outline-offset: 1px; }
+  .proposal-form { display: grid; gap: 7px; margin-top: 8px; }
+  .proposal-form label { color: #555; font-size: 12px; }
+  .proposal-form input { width: 100%; min-width: 0; height: 38px; padding: 7px 9px; border: 1px solid var(--ow-border); border-radius: 2px; background: var(--ow-surface); color: var(--ow-text); font: inherit; font-size: 16px; }
+  .proposal-form input:focus-visible { outline: 2px solid var(--ow-focus); outline-offset: 1px; }
+  .proposal-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .proposal-options > div { display: grid; gap: 6px; }
+  .proposal-note, .proposal-feedback, .archive-empty { margin: 0; color: var(--ow-muted); font-size: 11px; line-height: 1.45; }
+  .proposal-form button { justify-self: start; min-height: 35px; height: auto; padding: 4px 11px; }
+  .proposal-feedback { min-height: 17px; font-size: 12px; }
+  .proposal-feedback[data-state="error"] { color: #8b4936; }
+  .proposal-feedback[data-state="success"] { color: #48694d; }
+  .choice-archive { list-style: none; margin: 8px 0 0; padding: 0; }
+  .choice-archive li { padding: 12px 2px; border-top: 1px solid #b5b5b5; }
+  .archive-question { margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 16px; line-height: 1.45; }
+  .archive-outcome { margin: 6px 0 0; color: var(--ow-muted); font-size: 11px; line-height: 1.4; }
+  .archive-time { display: block; margin-top: 5px; color: var(--ow-muted); font-size: 10px; }
+  #older-decisions { min-height: 32px; height: auto; margin-top: 9px; padding: 4px 9px; }
+  @media (max-width: 560px) {
+    .choice { padding-top: max(54px, calc(env(safe-area-inset-top) + 44px)); }
+    .choice-heading { margin-bottom: 34px; }
+    .decision { min-height: 230px; }
+    .decision-options, .proposal-options { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+    .decision-options button { min-height: 48px; }
+    .proposal-panel, .archive-panel { margin-top: 30px; }
+  }
+  @media (orientation: landscape) and (max-height: 520px) {
+    .choice { padding-top: max(46px, calc(env(safe-area-inset-top) + 36px)); }
+    .choice-heading { margin-bottom: 20px; }
+    .decision { min-height: 180px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .choice *, .choice *::before, .choice *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+</style>

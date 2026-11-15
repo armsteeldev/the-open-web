@@ -1,0 +1,102 @@
+---
+import SpaceLayout from '../layouts/SpaceLayout.astro';
+---
+<SpaceLayout title="Open Questions — The Open Web" layout="document">
+  <main class="questions" aria-labelledby="questions-title">
+    <header class="questions-heading">
+      <h1 id="questions-title">Open Questions</h1>
+      <button id="all-questions" type="button" hidden>All questions</button>
+    </header>
+    <div class="questions-layout" id="questions-layout">
+      <aside class="questions-index" aria-label="Browse questions">
+        <form id="question-form" class="question-ask">
+          <label for="question-input">Ask a question</label>
+          <input id="question-input" type="text" maxlength="360" autocomplete="off" placeholder="What have you wondered?" aria-describedby="question-limit question-feedback" />
+          <p id="question-limit" class="question-limit">Up to 180 characters and 420 UTF-8 bytes.</p>
+          <button id="question-submit" type="submit">Ask</button>
+          <p id="question-feedback" class="form-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
+        </form>
+        <ol id="question-list" class="question-list" aria-label="Recent questions"></ol>
+        <p id="questions-empty" class="questions-empty" hidden>No questions yet. Ask the first one.</p>
+        <p id="list-feedback" class="form-feedback" role="status" aria-live="polite"></p>
+        <button id="older-questions" class="older-questions" type="button" hidden>Older questions</button>
+      </aside>
+
+      <section id="question-detail" class="question-detail" aria-label="Selected question" hidden>
+        <header class="question-detail-heading">
+          <time id="question-time"></time>
+          <h2 id="question-text"></h2>
+        </header>
+        <p id="answers-empty" class="answers-empty" hidden>No answers yet. You can be the first.</p>
+        <ol id="answer-list" class="answer-list" aria-label="Answers"></ol>
+        <form id="answer-form" class="answer-form">
+          <label id="answer-label" for="answer-input">Your answer</label>
+          <textarea id="answer-input" rows="4" maxlength="600" aria-describedby="answer-limit answer-guidance answer-feedback" placeholder="Leave a response for whoever asked"></textarea>
+          <p id="answer-limit" class="question-limit">Up to 300 characters and 500 UTF-8 bytes.</p>
+          <p id="answer-guidance" class="answer-guidance">One current answer per browser cookie. Clearing it can add another.</p>
+          <button id="answer-submit" type="submit">Add your answer</button>
+          <p id="answer-feedback" class="form-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
+        </form>
+      </section>
+      <p id="detail-empty" class="detail-empty">Choose a question to read its answers.</p>
+    </div>
+  </main>
+  <script>import '../spaces/questions/client';</script>
+</SpaceLayout>
+
+<style is:global>
+  .questions { width: min(100%, 1120px); min-height: 100vh; min-height: 100svh; margin: 0 auto; padding: max(55px, calc(env(safe-area-inset-top) + 44px)) max(20px, env(safe-area-inset-right)) max(40px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
+  .questions *, .questions *::before, .questions *::after { box-sizing: border-box; }
+  .questions [hidden] { display: none !important; }
+  .questions-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 22px; padding-left: 38px; }
+  .questions-heading h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  .questions-heading button { min-height: 34px; height: auto; padding: 4px 9px; }
+  .questions-layout { display: grid; grid-template-columns: minmax(230px, 290px) minmax(0, 1fr); gap: 36px; align-items: start; }
+  .questions-index { min-width: 0; }
+  .question-ask { display: grid; gap: 7px; padding: 0 0 17px; border-bottom: 1px solid #b5b5b5; }
+  .question-ask label, .answer-form label { color: #555; font-size: 12px; }
+  .question-ask input, .answer-form textarea { width: 100%; min-width: 0; padding: 8px 9px; border: 1px solid var(--ow-border); border-radius: 2px; background: var(--ow-surface); color: var(--ow-text); font: inherit; font-size: 16px; }
+  .question-ask input { height: 38px; }
+  .question-ask input:focus-visible, .answer-form textarea:focus-visible { outline: 2px solid var(--ow-focus); outline-offset: 1px; }
+  .question-ask button, .answer-form button { justify-self: start; min-height: 34px; height: auto; padding: 4px 11px; }
+  .question-limit, .form-feedback, .answer-guidance { margin: 0; color: var(--ow-muted); font-size: 11px; line-height: 1.45; }
+  .form-feedback { min-height: 17px; font-size: 12px; }
+  .form-feedback[data-state="error"] { color: #8b4936; }
+  .form-feedback[data-state="success"] { color: #48694d; }
+  .question-list { list-style: none; margin: 0; padding: 0; }
+  .question-list li { border-bottom: 1px solid #b5b5b5; }
+  .question-link { display: block; padding: 11px 3px 10px; color: var(--ow-text); text-decoration: none; }
+  .question-link:hover { background: #e0e0e0; }
+  .question-link:focus-visible { outline-offset: -2px; }
+  .question-link[aria-current="page"] { background: #e4e4e1; }
+  .question-link-text { display: block; font-family: Georgia, 'Times New Roman', serif; font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
+  .question-link-meta { display: flex; justify-content: space-between; gap: 6px; margin-top: 5px; color: var(--ow-muted); font-size: 10px; }
+  .questions-empty, .detail-empty, .answers-empty { color: var(--ow-muted); font-size: 13px; line-height: 1.5; }
+  .questions-empty { margin: 12px 3px; }
+  .older-questions { min-height: 32px; height: auto; margin-top: 12px; padding: 4px 9px; }
+  .question-detail { min-width: 0; padding-left: 28px; border-left: 1px solid #b5b5b5; }
+  .question-detail-heading { padding: 2px 0 18px; }
+  .question-detail-heading time { color: var(--ow-muted); font-size: 11px; }
+  .question-detail-heading h2 { margin: 10px 0 0; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(20px, 3vw, 27px); font-weight: 400; line-height: 1.4; overflow-wrap: anywhere; }
+  .answer-list { list-style: none; margin: 0; padding: 0; }
+  .answer-row { padding: 11px 1px 12px; border-top: 1px solid #b5b5b5; }
+  .answer-row p { margin: 0; font-family: Georgia, 'Times New Roman', serif; font-size: 15px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .answer-row time { display: block; margin-top: 6px; color: var(--ow-muted); font-size: 10px; }
+  .answers-empty { margin: 0; padding: 12px 1px; border-top: 1px solid #b5b5b5; }
+  .answer-form { display: grid; gap: 7px; margin-top: 20px; padding-top: 15px; border-top: 1px solid #b5b5b5; }
+  .answer-form textarea { min-height: 100px; resize: vertical; line-height: 1.5; }
+  .answer-guidance { margin-top: -2px; }
+  .detail-empty { grid-column: 2; margin: 0; padding: 5px 0 0 28px; border-left: 1px solid #b5b5b5; }
+  @media (max-width: 720px) {
+    .questions { padding-top: max(54px, calc(env(safe-area-inset-top) + 44px)); }
+    .questions-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .question-detail { padding: 0; border-left: 0; }
+    .detail-empty { grid-column: 1; padding: 8px 0; border-left: 0; }
+    .questions-layout[data-focused="true"] .questions-index { display: none; }
+    .questions-layout[data-focused="true"] .detail-empty { display: none; }
+  }
+  @media (orientation: landscape) and (max-height: 520px) {
+    .questions { padding-top: max(46px, calc(env(safe-area-inset-top) + 36px)); }
+  }
+  @media (prefers-reduced-motion: reduce) { .questions *, .questions *::before, .questions *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+</style>

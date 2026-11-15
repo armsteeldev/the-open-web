@@ -1,0 +1,86 @@
+---
+import SpaceLayout from '../layouts/SpaceLayout.astro';
+---
+<SpaceLayout title="Guestbook — The Open Web" layout="document">
+  <main class="guestbook" aria-labelledby="guestbook-title">
+    <header class="guestbook-heading">
+      <h1 id="guestbook-title">Guestbook</h1>
+    </header>
+    <div class="guestbook-layout">
+      <section class="guestbook-entries" aria-label="Guestbook entries">
+        <p id="guestbook-empty" class="guestbook-empty" hidden>No signatures yet. Leave the first one.</p>
+        <ol id="guestbook-list" class="entry-list" aria-live="polite"></ol>
+        <p id="guestbook-read-feedback" class="quiet-status" role="status" aria-live="polite"></p>
+        <nav class="entry-pages" aria-label="Guestbook pages">
+          <button id="latest-entries" type="button" hidden>Back to latest</button>
+          <button id="older-entries" type="button" hidden>Older entries</button>
+        </nav>
+      </section>
+
+      <aside class="guestbook-writing" aria-labelledby="sign-title">
+        <h2 id="sign-title">Sign the book</h2>
+        <form id="guestbook-form">
+          <label for="guestbook-name">Name <span>(optional)</span></label>
+          <input id="guestbook-name" name="displayName" type="text" maxlength="48" autocomplete="nickname" placeholder="As you like to be known" />
+          <label for="guestbook-message">A short message</label>
+          <textarea id="guestbook-message" name="message" rows="4" maxlength="440" required aria-describedby="guestbook-limit guestbook-feedback" placeholder="Leave a note for the next visitor"></textarea>
+          <p id="guestbook-limit" class="field-note">Up to 220 characters and 500 UTF-8 bytes.</p>
+          <button id="guestbook-submit" type="submit">Leave a signature</button>
+          <p id="guestbook-feedback" class="write-status" role="status" aria-live="polite" aria-atomic="true"></p>
+        </form>
+      </aside>
+    </div>
+  </main>
+  <script>import '../spaces/guestbook/client';</script>
+</SpaceLayout>
+
+<style is:global>
+  .guestbook { width: min(100%, 1020px); min-height: 100vh; min-height: 100svh; margin: 0 auto; padding: max(55px, calc(env(safe-area-inset-top) + 44px)) max(18px, env(safe-area-inset-right)) max(36px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); }
+  .guestbook *, .guestbook *::before, .guestbook *::after { box-sizing: border-box; }
+  .guestbook [hidden] { display: none !important; }
+  .guestbook-heading { margin: 0 0 24px; padding-left: 38px; }
+  .guestbook-heading h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  .guestbook-layout { display: grid; grid-template-columns: minmax(0, 1fr) 248px; gap: 44px; align-items: start; }
+  .guestbook-entries { min-width: 0; }
+  .entry-list { list-style: none; margin: 0; padding: 0; }
+  .entry-row { padding: 14px 2px 13px; border-top: 1px solid #b5b5b5; }
+  .entry-row:last-child { border-bottom: 1px solid #b5b5b5; }
+  .entry-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 14px; }
+  .entry-name { color: #435467; font-weight: 600; overflow-wrap: anywhere; }
+  .entry-time { color: var(--ow-muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .entry-message { margin: 7px 0 0; font-family: Georgia, 'Times New Roman', serif; font-size: 16px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .guestbook-empty { min-height: 112px; margin: 0; padding: 24px 2px; color: var(--ow-muted); border-top: 1px solid #b5b5b5; border-bottom: 1px solid #b5b5b5; }
+  .entry-pages { display: flex; justify-content: space-between; gap: 8px; margin-top: 12px; }
+  .entry-pages button { min-height: 34px; height: auto; padding: 5px 9px; }
+  .guestbook-writing { position: sticky; top: 20px; padding-top: 2px; }
+  .guestbook-writing h2 { margin: 0 0 15px; font-size: 14px; font-weight: 600; }
+  .guestbook-writing form { display: grid; gap: 7px; }
+  .guestbook-writing label { margin-top: 2px; color: #555; font-size: 12px; }
+  .guestbook-writing label span { color: var(--ow-muted); }
+  .guestbook-writing input, .guestbook-writing textarea { width: 100%; min-width: 0; padding: 8px 9px; border: 1px solid var(--ow-border); border-radius: 2px; background: var(--ow-surface); color: var(--ow-text); font: inherit; font-size: 16px; }
+  .guestbook-writing input { height: 38px; }
+  .guestbook-writing textarea { min-height: 105px; resize: vertical; line-height: 1.45; }
+  .guestbook-writing input:focus-visible, .guestbook-writing textarea:focus-visible { outline: 2px solid var(--ow-focus); outline-offset: 1px; }
+  .guestbook-writing button { justify-self: start; min-height: 36px; height: auto; margin-top: 3px; padding: 5px 11px; }
+  .field-note, .write-status, .quiet-status { margin: 0; color: var(--ow-muted); font-size: 12px; line-height: 1.45; }
+  .write-status { min-height: 18px; }
+  .write-status[data-state="error"], .quiet-status[data-state="error"] { color: #8b4936; }
+  .write-status[data-state="success"] { color: #48694d; }
+  .quiet-status { margin-top: 8px; }
+  @media (max-width: 700px) {
+    .guestbook { padding-top: max(54px, calc(env(safe-area-inset-top) + 44px)); }
+    .guestbook-heading { margin-bottom: 17px; }
+    .guestbook-layout { grid-template-columns: minmax(0, 1fr); gap: 26px; }
+    .guestbook-writing { position: static; grid-row: 1; padding: 0 0 19px; }
+    .guestbook-writing h2 { margin-bottom: 10px; }
+    .guestbook-writing textarea { min-height: 92px; }
+  }
+  @media (max-width: 360px) {
+    .guestbook { padding-right: max(12px, env(safe-area-inset-right)); padding-left: max(12px, env(safe-area-inset-left)); }
+  }
+  @media (orientation: landscape) and (max-height: 520px) {
+    .guestbook { padding-top: max(46px, calc(env(safe-area-inset-top) + 36px)); }
+    .guestbook-writing { position: static; }
+  }
+  @media (prefers-reduced-motion: reduce) { .guestbook *, .guestbook *::before, .guestbook *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+</style>

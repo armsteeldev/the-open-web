@@ -1,6 +1,6 @@
 # Architecture
 
-The Open Web is one shared platform with independently implemented spaces. The Wall, Global Chat, and Message in a Bottle are active. Space registration is explicit and static; there is no dynamic module loader or separate service per space.
+The Open Web is one shared platform with independently implemented spaces. Seven spaces are active: The Wall, Global Chat, Message in a Bottle, Guestbook, The Story, Open Questions, and The Choice. Space registration is explicit and static; there is no dynamic module loader or separate service per space.
 
 ```mermaid
 flowchart LR
@@ -15,11 +15,23 @@ flowchart LR
   ChatAPI[Chat server module]
   BottleUI[Bottle frontend]
   BottleAPI[Bottle server module]
+  GuestbookUI[Guestbook frontend]
+  GuestbookAPI[Guestbook server module]
+  StoryUI[The Story frontend]
+  StoryAPI[The Story server module]
+  QuestionsUI[Open Questions frontend]
+  QuestionsAPI[Open Questions server module]
+  ChoiceUI[The Choice frontend]
+  ChoiceAPI[The Choice server module]
   Registry --> Shell
   Registry --> Core
   Shell --> WallUI
   Shell --> ChatUI
   Shell --> BottleUI
+  Shell --> GuestbookUI
+  Shell --> StoryUI
+  Shell --> QuestionsUI
+  Shell --> ChoiceUI
   Core --> WallAPI
   Core --> ChatAPI
   Core --> BottleAPI
@@ -28,6 +40,10 @@ flowchart LR
   ChatAPI --> DB
   ChatAPI --> Realtime
   BottleAPI --> DB
+  GuestbookAPI --> DB
+  StoryAPI --> DB
+  QuestionsAPI --> DB
+  ChoiceAPI --> DB
 ```
 
 ## Shared platform and space ownership
@@ -42,13 +58,13 @@ Spaces communicate with shared services through the `SpaceContext` defined in `a
 
 Astro serves static pages. `SpaceLayout.astro` provides document structure, typography, tokens, safe-area placement, focus styles, the global menu, and an optional utility slot. Its default `document` mode allows page scrolling. The Wall selects `layout="viewport"` to preserve its full-screen canvas behavior; Global Chat selects it to keep its message area and composer fitted to the available viewport. Other spaces can choose the document flow or implement their own content inside the same shell.
 
-`GlobalMenu.astro` derives links and the active path from the shared registry. It is independent of a space's internal page layout and uses a native disclosure control for keyboard and touch operation. The menu has an explicit fixed, safe-area-aware viewport position that takes precedence over the shared relative positioning for disclosures. Its browser regression test checks viewport bounds, stacking, pointer access, open/close behavior, keyboard operation, canvas interaction, and cross-space navigation on desktop, large desktop, tablet, narrow mobile, and mobile landscape. With Playwright Firefox and WebKit installed, run `OPEN_WEB_BROWSER=firefox ONLY_BROWSER_TEST=menu npm run test:browser` or use `webkit` to repeat those checks in another engine.
+`GlobalMenu.astro` derives links and the active path from the shared registry. It is independent of a space's internal page layout and uses a native disclosure control for keyboard and touch operation. The menu has an explicit fixed, safe-area-aware viewport position that takes precedence over the shared relative positioning for disclosures. Its browser regression test checks viewport bounds, stacking, pointer access, open/close behavior, keyboard operation, canvas interaction, and navigation to all seven spaces on desktop, large desktop, tablet, narrow mobile, and mobile landscape. With Playwright Firefox and WebKit installed, run `OPEN_WEB_BROWSER=firefox ONLY_BROWSER_TEST=menu npm run test:browser` or use `webkit` to repeat those checks in another engine.
 
 ## Backend and persistence
 
 One Fastify process on Node.js 22 handles shared middleware, health, and `/api/events`, then registers each active space module. Shared hooks apply security headers, bounded request caps, origin validation, trusted-proxy handling, and the emergency write gate before space routes.
 
-One `node:sqlite` connection uses WAL and transactional, append-only migrations in `database/migrations`. Space data-access code lives beside its server module. Existing Wall tables and released migrations remain unchanged. SQLite tables are separated by naming and ownership convention; they share one process and database file.
+One `node:sqlite` connection uses WAL and transactional, append-only migrations in `database/migrations`. Space data-access code lives beside its server module. Migration 005 adds only four owned table groups for Guestbook, The Story, Open Questions, and The Choice; existing Wall, Chat, and Bottle tables and records remain unchanged. SQLite tables are separated by naming and ownership convention; they share one process and database file.
 
 The single-process design is intentional. In-memory IP limits and WebSocket subscriptions are local to that process. No database server, cache, broker, or external realtime service is required.
 
@@ -65,5 +81,7 @@ The Wall remains a 2,000 × 2,000 canvas divided into 100 × 100 tiles. Palette,
 Global Chat owns `/chat`, `/api/chat/history`, `/api/chat/messages`, and its `chat_*` tables. It persists recent plain-text messages and uses a snapshot plus buffered events on connect; reconnect always takes a fresh history snapshot. Details and operator procedures are in [GLOBAL-CHAT.md](GLOBAL-CHAT.md).
 
 Message in a Bottle owns `/bottle`, `/api/bottle/random`, `/api/bottle/messages`, and its `bottle_*` tables. It stores up to 10,000 plain-text bottles, selects one with SQLite randomness, and uses a bounded browser-local list of recently seen IDs to reduce repeats. It does not use realtime. Details, retention, privacy, and operator removal are in [BOTTLE.md](BOTTLE.md).
+
+Guestbook owns `/guestbook`, its paginated `/api/guestbook/entries` API, and `guestbook_*` tables. It is a newest-first visitor ledger with a short optional signature. The Story owns `/story`, revision-checked `/api/story/contributions`, chapter reads, and `story_*` tables. It appends short passages to one shared, chaptered narrative and rejects stale revisions without consuming the draft. Open Questions owns `/questions`, paginated questions, focused answers, and `questions_*` tables. The Choice owns `/choice`, proposal, vote, active-state, and archive APIs under `/api/choice/`; it runs one seven-day collective decision with a bounded FIFO queue. These spaces use no realtime channels. Their request contracts, limits, retention, privacy, moderation commands, and visual review are documented in [EXPANSION-PHASE-I.md](EXPANSION-PHASE-I.md).
 
 See [ADDING-A-SPACE.md](ADDING-A-SPACE.md) for the end-to-end implementation sequence, [DATABASE.md](DATABASE.md) for migration and recovery rules, and [DEPLOYMENT.md](DEPLOYMENT.md) for production release gates.

@@ -23,9 +23,11 @@ try {
   const chatRedirect = await page.request.get(`${base}/chat`, { maxRedirects: 0 });
   assert.equal(chatRedirect.status(), 308);
   assert.equal(chatRedirect.headers().location, '/chat/');
-  const bottleRedirect = await page.request.get(`${base}/bottle`, { maxRedirects: 0 });
-  assert.equal(bottleRedirect.status(), 308);
-  assert.equal(bottleRedirect.headers().location, '/bottle/');
+  for (const path of ['/bottle', '/guestbook', '/story', '/questions', '/choice']) {
+    const redirectResponse = await page.request.get(`${base}${path}`, { maxRedirects: 0 });
+    assert.equal(redirectResponse.status(), 308, `${path} canonical slash redirect`);
+    assert.equal(redirectResponse.headers().location, `${path}/`);
+  }
 
   const response = await page.goto(`${base}/wall/`);
   assert.match(response.headers()['content-security-policy'], /default-src 'self'/);
@@ -79,7 +81,7 @@ try {
   await page.goto(`${base}/chat/`);
   await page.getByText('Connected', { exact: true }).waitFor({ timeout: 15000 });
   await page.locator('.global-menu > summary').click();
-  assert.equal(await page.locator('.global-menu nav a').count(), 3);
+  assert.equal(await page.locator('.global-menu nav a').count(), 7);
   assert.equal(await page.locator('.global-menu nav a[aria-current="page"]').textContent(), 'Global Chat');
   await page.keyboard.press('Escape');
   await page.getByLabel('Message', { exact: true }).fill('compiled HTTPS chat smoke');
@@ -97,9 +99,29 @@ try {
   await bottleReader.getByRole('button', { name: 'Find a bottle' }).click();
   await bottleReader.getByText('compiled HTTPS bottle smoke', { exact: true }).waitFor();
   await bottleReader.locator('.global-menu > summary').click();
-  assert.equal(await bottleReader.locator('.global-menu nav a').count(), 3);
+  assert.equal(await bottleReader.locator('.global-menu nav a').count(), 7);
   assert.equal(await bottleReader.locator('.global-menu nav a[aria-current="page"]').textContent(), 'Message in a Bottle');
   await bottleReaderContext.close();
+
+  for (const space of [
+    { path: '/wall/', title: 'The Wall' },
+    { path: '/chat/', title: 'Global Chat' },
+    { path: '/bottle/', title: 'Message in a Bottle' },
+    { path: '/guestbook/', title: 'Guestbook' },
+    { path: '/story/', title: 'The Story' },
+    { path: '/questions/', title: 'Open Questions' },
+    { path: '/choice/', title: 'The Choice' },
+  ]) {
+    const builtPage = await page.goto(`${base}${space.path}`);
+    assert.equal(builtPage.status(), 200, `${space.path} built page response`);
+    if (space.path === '/wall/') await page.locator('#wall').waitFor();
+    else await page.getByRole('heading', { name: space.title }).waitFor();
+    await page.locator('.global-menu > summary').click();
+    assert.equal(await page.locator('.global-menu nav a').count(), 7);
+    assert.equal(await page.locator('.global-menu nav a[aria-current="page"]').getAttribute('href'), space.path.slice(0, -1));
+    await page.keyboard.press('Escape');
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${space.path} built page has no horizontal overflow`);
+  }
 
   assert.deepEqual(errors, []);
   if (process.env.OPEN_WEB_SCREENSHOT) {
@@ -112,7 +134,7 @@ try {
     console.log(JSON.stringify(layout));
     await page.screenshot({ path: process.env.OPEN_WEB_SCREENSHOT });
   }
-  console.log('PASS compiled app over isolated HTTPS Caddy: CSP, Secure cookie, WSS, routing, menu, spoofed proxy-header rejection');
+  console.log('PASS compiled app over isolated HTTPS Caddy: CSP, Secure cookie, WSS, seven-space routing and menu, spoofed proxy-header rejection');
 } finally {
   await browser.close();
 }

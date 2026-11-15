@@ -1,0 +1,85 @@
+---
+import SpaceLayout from '../layouts/SpaceLayout.astro';
+---
+<SpaceLayout title="The Story — The Open Web" layout="document">
+  <main class="story" aria-labelledby="story-title">
+    <header class="story-heading">
+      <h1 id="story-title">The Story</h1>
+      <nav class="chapter-nav" aria-label="Story chapters">
+        <button id="previous-chapter" type="button" aria-label="Read earlier chapter" hidden>Earlier</button>
+        <span id="chapter-position" aria-live="polite"></span>
+        <button id="next-chapter" type="button" aria-label="Read later chapter" hidden>Later</button>
+      </nav>
+    </header>
+
+    <section class="story-reading" aria-label="Shared story">
+      <p id="story-empty" class="story-empty" hidden></p>
+      <div id="story-passages" class="story-passages"></div>
+    </section>
+
+    <section id="story-writing" class="story-writing" aria-label="Continue the story">
+      <div id="story-update" class="story-update" role="status" aria-live="polite" hidden>
+        <p id="story-update-text"></p>
+        <button id="story-review" type="button">I’ve read the new ending</button>
+      </div>
+      <form id="story-form">
+        <label for="story-passage">Continue the story</label>
+        <textarea id="story-passage" name="passage" rows="4" maxlength="440" aria-describedby="story-limit story-feedback" placeholder="Add the next small piece…"></textarea>
+        <div class="story-form-bottom">
+          <p id="story-limit" class="story-limit">Up to 220 characters and 500 UTF-8 bytes.</p>
+          <button id="story-submit" type="submit">Add a passage</button>
+        </div>
+        <p id="story-feedback" class="story-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
+      </form>
+    </section>
+    <p id="story-full" class="story-full" hidden>This story has reached its archive limit. All completed chapters remain here to read.</p>
+    <button id="story-current" class="story-current" type="button" hidden>Go to the open chapter</button>
+  </main>
+  <script>import '../spaces/story/client';</script>
+</SpaceLayout>
+
+<style is:global>
+  .story { width: min(100%, 840px); min-height: 100vh; min-height: 100svh; margin: 0 auto; padding: max(55px, calc(env(safe-area-inset-top) + 44px)) max(20px, env(safe-area-inset-right)) max(44px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
+  .story *, .story *::before, .story *::after { box-sizing: border-box; }
+  .story [hidden] { display: none !important; }
+  .story-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; margin: 0 0 27px; padding-left: 38px; }
+  .story-heading h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  .chapter-nav { display: flex; align-items: center; gap: 8px; color: var(--ow-muted); font-size: 12px; }
+  .chapter-nav button { min-width: 30px; min-height: 30px; height: auto; padding: 4px 8px; }
+  .story-reading { width: min(100%, 660px); min-height: 120px; margin: 0 auto; }
+  .story-passages { border-top: 1px solid #b5b5b5; }
+  .story-fragment { margin: 0; padding: 17px 2px 8px; color: #30302f; font-family: Georgia, 'Times New Roman', serif; font-size: 19px; line-height: 1.72; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .story-fragment + .story-fragment { padding-top: 10px; }
+  .story-fragment[data-removed="true"] { color: var(--ow-muted); font-style: italic; }
+  .story-fragment time { display: block; margin-top: 8px; color: var(--ow-muted); font: 11px system-ui, sans-serif; }
+  .story-empty { margin: 0; padding: 20px 2px; color: var(--ow-muted); border-top: 1px solid #b5b5b5; }
+  .story-writing { width: min(100%, 660px); margin: 32px auto 0; padding-top: 18px; border-top: 1px solid #b5b5b5; }
+  .story-writing label { display: block; margin-bottom: 8px; color: #555; font-size: 12px; }
+  .story-writing textarea { width: 100%; min-height: 110px; padding: 10px 11px; border: 1px solid var(--ow-border); border-radius: 2px; background: var(--ow-surface); color: var(--ow-text); font: 16px/1.5 Georgia, 'Times New Roman', serif; resize: vertical; }
+  .story-writing textarea:focus-visible { outline: 2px solid var(--ow-focus); outline-offset: 1px; }
+  .story-form-bottom { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 7px; }
+  .story-limit, .story-feedback, .story-full { margin: 0; color: var(--ow-muted); font-size: 12px; line-height: 1.5; }
+  .story-form-bottom button { min-height: 36px; height: auto; padding: 5px 12px; }
+  .story-feedback { min-height: 18px; margin-top: 4px; }
+  .story-feedback[data-state="error"] { color: #8b4936; }
+  .story-feedback[data-state="success"] { color: #48694d; }
+  .story-update { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; padding: 9px 10px; border-left: 2px solid #7e877e; background: #e7e7e4; }
+  .story-update p { margin: 0; color: #555; font-size: 12px; line-height: 1.45; }
+  .story-update button { min-height: 32px; height: auto; flex: 0 0 auto; padding: 4px 8px; }
+  .story-full { width: min(100%, 660px); margin: 24px auto 0; padding-top: 14px; border-top: 1px solid #b5b5b5; }
+  .story-current { min-height: 34px; height: auto; margin: 20px auto 0; padding: 5px 10px; }
+  @media (max-width: 600px) {
+    .story { padding-top: max(54px, calc(env(safe-area-inset-top) + 44px)); }
+    .story-heading { align-items: flex-start; flex-wrap: wrap; margin-bottom: 20px; }
+    .story-fragment { font-size: 17px; line-height: 1.68; }
+    .story-writing { margin-top: 24px; }
+    .story-writing textarea { min-height: 100px; }
+    .story-update { align-items: flex-start; flex-direction: column; }
+  }
+  @media (orientation: landscape) and (max-height: 520px) {
+    .story { padding-top: max(46px, calc(env(safe-area-inset-top) + 36px)); }
+    .story-heading { margin-bottom: 15px; }
+    .story-writing { margin-top: 18px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .story *, .story *::before, .story *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+</style>

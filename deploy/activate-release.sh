@@ -114,12 +114,12 @@ trap 'exit 143' TERM
 trap 'exit 129' HUP
 
 tar --no-same-owner -xzf "$archive" -C "$staging_dir"
-for expected_path in dist/apps/server/src/index.js dist/apps/server/src/spaces/chat/remove-message.js dist/apps/server/src/spaces/bottle/remove-bottle.js dist/database/migrations apps/web/dist/wall/index.html apps/web/dist/chat/index.html apps/web/dist/bottle/index.html apps/web/dist/release.json scripts/backup.mjs scripts/test-production.mjs package.json package-lock.json; do
+for expected_path in dist/apps/server/src/index.js dist/apps/server/src/spaces/chat/remove-message.js dist/apps/server/src/spaces/bottle/remove-bottle.js dist/apps/server/src/spaces/guestbook/remove-entry.js dist/apps/server/src/spaces/story/remove-contribution.js dist/apps/server/src/spaces/questions/remove-question.js dist/apps/server/src/spaces/questions/remove-answer.js dist/apps/server/src/spaces/choice/remove-decision.js dist/database/migrations apps/web/dist/wall/index.html apps/web/dist/chat/index.html apps/web/dist/bottle/index.html apps/web/dist/guestbook/index.html apps/web/dist/story/index.html apps/web/dist/questions/index.html apps/web/dist/choice/index.html apps/web/dist/release.json scripts/backup.mjs scripts/test-production.mjs package.json package-lock.json; do
   [[ -e $staging_dir/$expected_path ]] || fail "release archive is missing $expected_path"
 done
 manifest=$(cat "$staging_dir/apps/web/dist/release.json")
 [[ $manifest == "$expected_manifest" ]] || fail 'release manifest does not match the verified Git commit'
-require_rollback_compatibility "$staging_dir" "$previous_release" || fail 'the active release is not a safe rollback target for migration 004'
+require_rollback_compatibility "$staging_dir" "$previous_release" || fail 'the active release is not a safe rollback target for the candidate database schema'
 chown -R root:root "$staging_dir"
 npm --prefix "$staging_dir" ci --omit=dev --ignore-scripts --no-audit --no-fund
 npm --prefix "$staging_dir" run test:production
@@ -162,6 +162,25 @@ bottle_html=$(curl --fail --silent --show-error --max-time 12 https://open.armst
 [[ $bottle_html == *'id="release-form"'* && $bottle_html == *'id="find-bottle"'* && $bottle_html == *'The Wall'* && $bottle_html == *'Global Chat'* && $bottle_html == *'Message in a Bottle'* ]] || fail 'public Bottle page or shared navigation was incomplete'
 bottle_result=$(curl --fail --silent --show-error --max-time 8 https://open.armsteel.dev/api/bottle/random) || fail 'public Bottle discovery endpoint failed'
 printf '%s' "$bottle_result" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s);process.exit(v&&typeof v==="object"&&("bottle" in v)&&typeof v.exhausted==="boolean"?0:1)}catch{process.exit(1)}})' || fail 'public Bottle discovery response was invalid'
+guestbook_html=$(curl --fail --silent --show-error --max-time 12 https://open.armsteel.dev/guestbook/)
+[[ $guestbook_html == *'id="guestbook-form"'* && $guestbook_html == *'Global Chat'* && $guestbook_html == *'The Story'* && $guestbook_html == *'The Choice'* ]] || fail 'public Guestbook page or shared navigation was incomplete'
+guestbook_entries=$(curl --fail --silent --show-error --max-time 8 https://open.armsteel.dev/api/guestbook/entries) || fail 'public Guestbook entries endpoint failed'
+printf '%s' "$guestbook_entries" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s);process.exit(Array.isArray(v.entries)&&("nextBefore" in v)?0:1)}catch{process.exit(1)}})' || fail 'public Guestbook response was invalid'
+story_html=$(curl --fail --silent --show-error --max-time 12 https://open.armsteel.dev/story/)
+[[ $story_html == *'id="story-form"'* && $story_html == *'Global Chat'* && $story_html == *'Open Questions'* ]] || fail 'public Story page or shared navigation was incomplete'
+story_state=$(curl --fail --silent --show-error --max-time 8 https://open.armsteel.dev/api/story/state) || fail 'public Story state endpoint failed'
+printf '%s' "$story_state" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s);process.exit((v.chapter===null||typeof v.chapter==="object")&&Number.isSafeInteger(v.chapterCount)?0:1)}catch{process.exit(1)}})' || fail 'public Story response was invalid'
+questions_html=$(curl --fail --silent --show-error --max-time 12 https://open.armsteel.dev/questions/)
+[[ $questions_html == *'id="question-form"'* && $questions_html == *'Global Chat'* && $questions_html == *'Guestbook'* ]] || fail 'public Open Questions page or shared navigation was incomplete'
+questions_list=$(curl --fail --silent --show-error --max-time 8 https://open.armsteel.dev/api/questions) || fail 'public Open Questions list endpoint failed'
+printf '%s' "$questions_list" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s);process.exit(Array.isArray(v.questions)&&("nextBefore" in v)?0:1)}catch{process.exit(1)}})' || fail 'public Open Questions response was invalid'
+choice_html=$(curl --fail --silent --show-error --max-time 12 https://open.armsteel.dev/choice/)
+[[ $choice_html == *'id="proposal-form"'* ]] || fail 'public The Choice page was incomplete'
+for navigation_label in 'The Wall' 'Global Chat' 'Message in a Bottle' 'Guestbook' 'The Story' 'Open Questions' 'The Choice'; do
+  [[ $choice_html == *"$navigation_label"* ]] || fail "public navigation is missing $navigation_label"
+done
+choice_state=$(curl --fail --silent --show-error --max-time 8 https://open.armsteel.dev/api/choice/state) || fail 'public The Choice state endpoint failed'
+printf '%s' "$choice_state" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s);process.exit((v.active===null||typeof v.active==="object")&&Number.isSafeInteger(v.queuedCount)?0:1)}catch{process.exit(1)}})' || fail 'public The Choice response was invalid'
 
 state_temp=$(mktemp "$root/.previous-release.XXXXXX")
 printf '%s\n' "$previous_release" > "$state_temp"

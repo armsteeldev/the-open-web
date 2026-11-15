@@ -13,6 +13,15 @@ const viewports = [
   { name: 'narrow mobile', width: 320, height: 640, touch: true },
   { name: 'mobile landscape', width: 844, height: 390, touch: true },
 ];
+const spaces = [
+  { text: 'The Wall', path: '/wall' },
+  { text: 'Global Chat', path: '/chat' },
+  { text: 'Message in a Bottle', path: '/bottle' },
+  { text: 'Guestbook', path: '/guestbook' },
+  { text: 'The Story', path: '/story' },
+  { text: 'Open Questions', path: '/questions' },
+  { text: 'The Choice', path: '/choice' },
+];
 
 const browserName = process.env.OPEN_WEB_BROWSER ?? 'chromium';
 const browserType = { chromium, firefox, webkit }[browserName];
@@ -78,11 +87,11 @@ try {
         href: element.getAttribute('href'),
         current: element.getAttribute('aria-current'),
       })));
-      assert.deepEqual(links, [
-        { text: 'The Wall', href: '/wall', current: expectedPath === '/wall' ? 'page' : null },
-        { text: 'Global Chat', href: '/chat', current: expectedPath === '/chat' ? 'page' : null },
-        { text: 'Message in a Bottle', href: '/bottle', current: expectedPath === '/bottle' ? 'page' : null },
-      ]);
+      assert.deepEqual(links, spaces.map(space => ({
+        text: space.text,
+        href: space.path,
+        current: expectedPath === space.path ? 'page' : null,
+      })));
     }
 
     await assertMenuVisible('/wall');
@@ -128,6 +137,16 @@ try {
     await page.waitForURL(url => new URL(url).pathname.replace(/\/$/, '') === '/bottle');
     assert.equal(await menu.evaluate(element => element.open), false);
     await assertMenuVisible('/bottle');
+
+    for (const space of spaces.slice(3)) {
+      if (viewport.touch) await trigger.tap();
+      else await trigger.click();
+      await panel.getByRole('link', { name: space.text }).click();
+      await page.waitForURL(url => new URL(url).pathname.replace(/\/$/, '') === space.path);
+      assert.equal(await menu.evaluate(element => element.open), false);
+      await assertMenuVisible(space.path);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${viewport.name}: ${space.path} has no horizontal overflow`);
+    }
 
     if (viewport.touch) await trigger.tap();
     else await trigger.click();

@@ -14,7 +14,7 @@ test('ordered migrations upgrade existing data and fail closed on newer schemas'
  try {
   let db=openDb(path,url);place(db,'visitor',1,2,3,1000,5000);db.close();
   db=openDb(path,new URL('../database/migrations/',import.meta.url));
-  assert.deepEqual(db.prepare('SELECT version FROM migrations ORDER BY version').all().map(r=>r.version),[1,2,3,4]);
+  assert.deepEqual(db.prepare('SELECT version FROM migrations ORDER BY version').all().map(r=>r.version),[1,2,3,4,5]);
   assert.equal((db.prepare('SELECT pixels FROM wall_tiles').get()!.pixels as Uint8Array)[201],3);db.close();
   const advanced=join(root,'advanced');mkdirSync(advanced);
   for(const name of ['001_initial.sql','002_cooldown_retention.sql','003_chat_messages.sql'])writeFileSync(join(advanced,name),readFileSync(new URL(`../database/migrations/${name}`,import.meta.url)));

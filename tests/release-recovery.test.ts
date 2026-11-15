@@ -8,7 +8,8 @@ import { join, resolve } from 'node:path';
 import { once } from 'node:events';
 
 const recoveryScript = resolve('deploy/release-recovery.sh');
-const fingerprint = '990f41588a6c25778e5d2f1d5ba475da8797298021b429e354929c6b509be47e';
+const bottleFingerprint = '990f41588a6c25778e5d2f1d5ba475da8797298021b429e354929c6b509be47e';
+const expansionFingerprint = 'de82a92961340220f02c40369d87637ffd1b65f9a890fa3537905ad987b9e229';
 
 function writeRelease(root: string, name: string): string {
   const directory = join(root, 'releases', name);
@@ -181,7 +182,7 @@ test('down or stale service cannot be reported as recovered, even if systemd cla
   }
 });
 
-test('migration 004 release is blocked unless its rollback target has the exact compatibility marker', () => {
+test('migrations 004 and 005 require their exact compatibility markers in the rollback target', () => {
   const root = mkdtempSync(join(tmpdir(), 'open-web-rollback-gate-'));
   try {
     const candidate = join(root, 'candidate');
@@ -191,8 +192,9 @@ test('migration 004 release is blocked unless its rollback target has the exact 
     mkdirSync(join(legacy, 'dist/apps/server/src'), { recursive: true });
     mkdirSync(join(bridge, 'dist/apps/server/src'), { recursive: true });
     writeFileSync(join(candidate, 'dist/database/migrations/004_bottle_messages.sql'), 'schema');
+    writeFileSync(join(candidate, 'dist/database/migrations/005_expansion_phase_one.sql'), 'schema');
     writeFileSync(join(legacy, 'dist/apps/server/src/db.js'), 'migration runner 001-003');
-    writeFileSync(join(bridge, 'dist/apps/server/src/db.js'), `known schema ${fingerprint}`);
+    writeFileSync(join(bridge, 'dist/apps/server/src/db.js'), `known schema ${bottleFingerprint} and ${expansionFingerprint}`);
 
     const check = `source "$RECOVERY_SCRIPT"; require_rollback_compatibility "$CANDIDATE" "$PREVIOUS"`;
     const rejected = spawnSync('bash', ['-Eeuo', 'pipefail', '-c', check], {
@@ -201,6 +203,13 @@ test('migration 004 release is blocked unless its rollback target has the exact 
     });
     assert.notEqual(rejected.status, 0);
     assert.match(rejected.stderr, /Deploy the compatibility bridge first/);
+    writeFileSync(join(legacy, 'dist/apps/server/src/db.js'), `known schema ${bottleFingerprint}`);
+    const missingExpansion = spawnSync('bash', ['-Eeuo', 'pipefail', '-c', check], {
+      env: { ...process.env, RECOVERY_SCRIPT: recoveryScript, CANDIDATE: candidate, PREVIOUS: legacy },
+      encoding: 'utf8',
+    });
+    assert.notEqual(missingExpansion.status, 0);
+    assert.match(missingExpansion.stderr, /Deploy the expansion compatibility bridge first/);
     const accepted = spawnSync('bash', ['-Eeuo', 'pipefail', '-c', check], {
       env: { ...process.env, RECOVERY_SCRIPT: recoveryScript, CANDIDATE: candidate, PREVIOUS: bridge },
       encoding: 'utf8',

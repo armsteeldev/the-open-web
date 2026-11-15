@@ -9,6 +9,10 @@ import { createApp } from '../apps/server/src/app.js';
 import { wallSpace } from '../apps/server/src/spaces/wall/index.js';
 import { chatSpace } from '../apps/server/src/spaces/chat/index.js';
 import { bottleSpace } from '../apps/server/src/spaces/bottle/index.js';
+import { guestbookSpace } from '../apps/server/src/spaces/guestbook/index.js';
+import { storySpace } from '../apps/server/src/spaces/story/index.js';
+import { questionsSpace } from '../apps/server/src/spaces/questions/index.js';
+import { choiceSpace } from '../apps/server/src/spaces/choice/index.js';
 import type { SpaceModule } from '../apps/server/src/spaces/types.js';
 
 const origin = 'http://localhost:4321';
@@ -16,7 +20,7 @@ const options = (dbPath: string, writes = true) => ({ dbPath, origin, cooldown: 
 
 test('registry entries are unique, valid and point to real active frontend routes', () => {
   validateSpaceRegistry();
-  assert.deepEqual(activeSpaces().map(space => space.id), ['wall', 'chat', 'bottle']);
+  assert.deepEqual(activeSpaces().map(space => space.id), ['wall', 'chat', 'bottle', 'guestbook', 'story', 'questions', 'choice']);
 
   for (const space of activeSpaces()) {
     const route = space.path.slice(1);
@@ -60,7 +64,7 @@ test('space modules receive shared identity and middleware with namespace-bound 
       app.post('/api/module-fixture/write', () => ({ ok: true }));
     },
   };
-  const coreModules = [wallSpace, chatSpace, bottleSpace];
+  const coreModules = [wallSpace, chatSpace, bottleSpace, guestbookSpace, storySpace, questionsSpace, choiceSpace];
   const app = await createApp(options(join(root, 'db'), false), {
     registry: [...spaces, fixtureSpace],
     modules: [...coreModules, fixtureModule],
@@ -111,13 +115,13 @@ test('unknown, duplicate and cross-namespace server modules fail closed', async 
     await assert.rejects(
       createApp(options(join(root, 'inactive.sqlite')), {
         registry: [...spaces, inactiveSpace],
-        modules: [wallSpace, chatSpace, bottleSpace, emptyModule('inactive')],
+        modules: [wallSpace, chatSpace, bottleSpace, guestbookSpace, storySpace, questionsSpace, choiceSpace, emptyModule('inactive')],
       }),
       /no active registry entry/,
     );
     const activeFixture = { id: 'active-fixture', label: 'Active fixture', path: '/active-fixture', status: 'active' } as const satisfies SpaceDefinition;
     await assert.rejects(
-      createApp(options(join(root, 'missing.sqlite')), { registry: [...spaces, activeFixture], modules: [wallSpace, chatSpace, bottleSpace] }),
+      createApp(options(join(root, 'missing.sqlite')), { registry: [...spaces, activeFixture], modules: [wallSpace, chatSpace, bottleSpace, guestbookSpace, storySpace, questionsSpace, choiceSpace] }),
       /Active space has no server module/,
     );
     await assert.rejects(
@@ -130,7 +134,7 @@ test('unknown, duplicate and cross-namespace server modules fail closed', async 
       register(app) { app.get('/api/module-fixture/escaped', () => ({ ok: true })); },
     };
     await assert.rejects(
-      createApp(options(join(root, 'escaped.sqlite')), { modules: [rogueWall, chatSpace, bottleSpace] }),
+      createApp(options(join(root, 'escaped.sqlite')), { modules: [rogueWall, chatSpace, bottleSpace, guestbookSpace, storySpace, questionsSpace, choiceSpace] }),
       /attempted to register an unowned route/,
     );
   } finally {
@@ -151,7 +155,7 @@ test('the shared emergency write gate blocks mutations in every registered modul
   };
   const app = await createApp({ ...options(join(root, 'db')), writeGatePath: gatePath }, {
     registry: [...spaces, fixtureSpace],
-    modules: [wallSpace, chatSpace, bottleSpace, fixtureModule],
+    modules: [wallSpace, chatSpace, bottleSpace, guestbookSpace, storySpace, questionsSpace, choiceSpace, fixtureModule],
   });
   try {
     const read = await app.inject({ url: '/api/module-fixture/health' });
