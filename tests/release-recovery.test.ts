@@ -11,6 +11,7 @@ const recoveryScript = resolve('deploy/release-recovery.sh');
 const bottleFingerprint = '990f41588a6c25778e5d2f1d5ba475da8797298021b429e354929c6b509be47e';
 const expansionFingerprint = 'de82a92961340220f02c40369d87637ffd1b65f9a890fa3537905ad987b9e229';
 const finalSpacesFingerprint = '718a3c10db4694071153003263cd695a6d322b6bf5bbce45d8bc379dabb8a046';
+const qualityFingerprint = '194b28a6db6fe50aa6046346ce72a6d0c721e86ead70f340935ca32d9f4a8d36';
 
 function writeRelease(root: string, name: string): string {
   const directory = join(root, 'releases', name);
@@ -183,7 +184,7 @@ test('down or stale service cannot be reported as recovered, even if systemd cla
   }
 });
 
-test('migrations 004, 005 and 006 require their exact compatibility markers in the rollback target', () => {
+test('migrations 004 through 007 require their exact compatibility markers in the rollback target', () => {
   const root = mkdtempSync(join(tmpdir(), 'open-web-rollback-gate-'));
   try {
     const candidate = join(root, 'candidate');
@@ -195,6 +196,7 @@ test('migrations 004, 005 and 006 require their exact compatibility markers in t
     writeFileSync(join(candidate, 'dist/database/migrations/004_bottle_messages.sql'), 'schema');
     writeFileSync(join(candidate, 'dist/database/migrations/005_expansion_phase_one.sql'), 'schema');
     writeFileSync(join(candidate, 'dist/database/migrations/006_final_spaces.sql'), 'schema');
+    writeFileSync(join(candidate, 'dist/database/migrations/007_quality_and_drawing_retries.sql'), 'schema');
     writeFileSync(join(legacy, 'dist/apps/server/src/db.js'), 'migration runner 001-003');
     writeFileSync(join(bridge, 'dist/apps/server/src/db.js'), 'known schema ' + bottleFingerprint + ' and ' + expansionFingerprint + ' and ' + finalSpacesFingerprint);
 
@@ -219,6 +221,14 @@ test('migrations 004, 005 and 006 require their exact compatibility markers in t
     });
     assert.notEqual(missingFinalSpaces.status, 0);
     assert.match(missingFinalSpaces.stderr, /Deploy the final-expansion compatibility bridge first/);
+    writeFileSync(join(legacy, 'dist/apps/server/src/db.js'), `known schema ${bottleFingerprint} and ${expansionFingerprint} and ${finalSpacesFingerprint}`);
+    const missingQuality = spawnSync('bash', ['-Eeuo', 'pipefail', '-c', check], {
+      env: { ...process.env, RECOVERY_SCRIPT: recoveryScript, CANDIDATE: candidate, PREVIOUS: legacy },
+      encoding: 'utf8',
+    });
+    assert.notEqual(missingQuality.status, 0);
+    assert.match(missingQuality.stderr, /Deploy the quality-campaign compatibility bridge first/);
+    writeFileSync(join(bridge, 'dist/apps/server/src/db.js'), `known schema ${bottleFingerprint} and ${expansionFingerprint} and ${finalSpacesFingerprint} and ${qualityFingerprint}`);
     const accepted = spawnSync('bash', ['-Eeuo', 'pipefail', '-c', check], {
       env: { ...process.env, RECOVERY_SCRIPT: recoveryScript, CANDIDATE: candidate, PREVIOUS: bridge },
       encoding: 'utf8',

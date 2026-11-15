@@ -115,11 +115,16 @@ test('the three-space bridge, ten-space candidate migration, and bridge rollback
       tool: 'pen', color: strokeIndex % 6, size: strokeIndex % 3,
       points: Array.from({ length: 70 }, (_, pointIndex) => [pointIndex * 13, (pointIndex * 7 + strokeIndex) % 700]),
     }));
-    const drawing = await write('/api/draw/drawings', { strokes });
+    const drawingRequestId = '595008c2-7bbf-4ced-8d47-3a0df06c3d24';
+    const drawing = await write('/api/draw/drawings', { requestId: drawingRequestId, strokes });
     assert.equal(drawing.statusCode, 201, drawing.body);
     drawingId = drawing.json().drawing.id as number;
     assert.ok(Buffer.byteLength(drawing.body) > 1_024, 'the drawing submission exercises the bounded route exception');
     assert.equal((await candidate.inject(`/api/draw/drawings/${drawingId}`)).json().drawing.strokes.length, 8);
+    const drawingRetry = await write('/api/draw/drawings', { requestId: drawingRequestId, strokes });
+    assert.equal(drawingRetry.statusCode, 200, drawingRetry.body);
+    assert.equal(drawingRetry.json().drawing.id, drawingId);
+    assert.equal(drawingRetry.json().replayed, true);
 
     const garden = await candidate.inject('/api/garden/state');
     assert.deepEqual(garden.json().plants, []);
@@ -143,7 +148,7 @@ test('the three-space bridge, ten-space candidate migration, and bridge rollback
   const migrated = openDb(path);
   assert.deepEqual(
     (migrated.prepare('SELECT version FROM migrations ORDER BY version').all() as { version: number }[]).map(row => row.version),
-    [1, 2, 3, 4, 5, 6],
+    [1, 2, 3, 4, 5, 6, 7],
   );
   assert.equal(migrated.prepare('PRAGMA integrity_check').get()!.integrity_check, 'ok');
   assert.deepEqual(migrated.prepare('PRAGMA foreign_key_check').all(), []);
@@ -152,22 +157,24 @@ test('the three-space bridge, ten-space candidate migration, and bridge rollback
   assert.equal((migrated.prepare('SELECT COUNT(*) AS count FROM questions_answers WHERE question_id=?').get(questionId) as { count: number }).count, 1);
   assert.equal((migrated.prepare('SELECT choice FROM choice_votes WHERE decision_id=?').get(decisionId) as { choice: string }).choice, 'a');
   assert.equal((migrated.prepare('SELECT COUNT(*) AS count FROM draw_drawings WHERE id=?').get(drawingId) as { count: number }).count, 1);
+  assert.equal((migrated.prepare('SELECT COUNT(*) AS count FROM draw_submission_idempotency WHERE drawing_id=?').get(drawingId) as { count: number }).count, 1);
   assert.equal((migrated.prepare('SELECT COUNT(*) AS count FROM garden_plants WHERE x=? AND y=?').get(plantPosition.x, plantPosition.y) as { count: number }).count, 1);
   assert.equal((migrated.prepare('SELECT country_code FROM map_contributions').get() as { country_code: string }).country_code, 'SE');
   migrated.close();
 
   bridge = await createApp(options(path), bridgeRegistration(bridgeMigrations));
   try {
-    assert.equal((await bridge.inject('/api/health')).statusCode, 200, 'bridge startup accepts the exact known 006 schema');
+    assert.equal((await bridge.inject('/api/health')).statusCode, 200, 'bridge startup accepts the exact known 007 schema');
     assert.equal((await bridge.inject('/api/wall/tile/0/0')).rawPayload[302], 4);
     assert.equal((await bridge.inject('/api/chat/history')).json().messages[0].text, 'chat data survives both switches');
     assert.equal((await bridge.inject('/api/bottle/random')).json().bottle.message, 'Bottle data survives both switches');
     assert.equal((await bridge.inject('/api/guestbook/entries')).statusCode, 404, 'bridge rollback keeps new spaces inactive');
     assert.equal((await bridge.inject('/api/draw/drawings')).statusCode, 404, 'bridge rollback does not expose Drawing Board');
     const retained = openDb(path, bridgeMigrations);
-    assert.equal(retained.prepare('SELECT MAX(version) AS version FROM migrations').get()!.version, 6);
+    assert.equal(retained.prepare('SELECT MAX(version) AS version FROM migrations').get()!.version, 7);
     assert.equal((retained.prepare('SELECT body FROM guestbook_entries').get() as { body: string }).body, 'Guestbook data survives rollback');
     assert.equal((retained.prepare('SELECT COUNT(*) AS count FROM draw_drawings WHERE id=?').get(drawingId) as { count: number }).count, 1);
+    assert.equal((retained.prepare('SELECT COUNT(*) AS count FROM draw_submission_idempotency WHERE drawing_id=?').get(drawingId) as { count: number }).count, 1);
     assert.equal((retained.prepare('SELECT COUNT(*) AS count FROM garden_plants WHERE x=? AND y=?').get(plantPosition.x, plantPosition.y) as { count: number }).count, 1);
     assert.equal((retained.prepare('SELECT country_code FROM map_contributions').get() as { country_code: string }).country_code, 'SE');
     assert.equal(retained.prepare('PRAGMA integrity_check').get()!.integrity_check, 'ok');
@@ -179,13 +186,13 @@ test('the three-space bridge, ten-space candidate migration, and bridge rollback
   }
 });
 
-test('bridge rejects unexpected versions and altered migrations 005 and 006 schemas', () => {
+test('bridge rejects unexpected versions and altered migration 005, 006, and 007 schemas', () => {
   const root = mkdtempSync(join(tmpdir(), 'open-web-expansion-invalid-'));
   const migrations = migrationsThrough004(join(root, 'bridge-migrations'));
   try {
     const unexpectedPath = join(root, 'unexpected.sqlite');
     const unexpected = openDb(unexpectedPath);
-    unexpected.prepare('INSERT INTO migrations(version) VALUES (7)').run();
+    unexpected.prepare('INSERT INTO migrations(version) VALUES (8)').run();
     unexpected.close();
     assert.throws(() => openDb(unexpectedPath, migrations), /not supported/);
 
@@ -200,6 +207,12 @@ test('bridge rejects unexpected versions and altered migrations 005 and 006 sche
     alteredFinal.exec('DROP INDEX draw_drawings_created_id');
     alteredFinal.close();
     assert.throws(() => openDb(alteredFinalPath, migrations), /does not match its known compatibility schema/);
+
+    const alteredQualityPath = join(root, 'altered-quality.sqlite');
+    const alteredQuality = openDb(alteredQualityPath);
+    alteredQuality.exec('DROP INDEX questions_answers_updated_id_idx');
+    alteredQuality.close();
+    assert.throws(() => openDb(alteredQualityPath, migrations), /does not match its known compatibility schema/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -1,9 +1,11 @@
 import type { DatabaseSync } from 'node:sqlite';
+import { createHash } from 'node:crypto';
 import type { DrawingStroke, ValidatedDrawing } from './validation.js';
 
 export const DRAWING_CAP = 1500;
 export const DRAWING_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;
 export const DRAWING_COOLDOWN_MS = 5 * 60 * 1000;
+export const DRAWING_IDEMPOTENCY_MS = 24 * 60 * 60 * 1000;
 export const DRAWING_VISITOR_CAP = 50_000;
 export const DRAWING_PAGE_SIZE = 12;
 
@@ -38,8 +40,9 @@ export function readDrawing(db: DatabaseSync, id: number): Drawing | null {
 }
 
 export type SubmitDrawingResult =
-  | { readonly ok: true; readonly drawing: Drawing }
-  | { readonly ok: false; readonly reason: 'cooldown'; readonly retryAfterMs: number };
+  | { readonly ok: true; readonly drawing: Drawing; readonly replayed: boolean }
+  | { readonly ok: false; readonly reason: 'cooldown'; readonly retryAfterMs: number }
+  | { readonly ok: false; readonly reason: 'idempotency-conflict' };
 
 export function submitDrawing(
   db: DatabaseSync,
@@ -50,6 +53,23 @@ export function submitDrawing(
   db.exec('BEGIN IMMEDIATE');
   try {
     db.prepare('DELETE FROM draw_drawings WHERE created_at<?').run(now - DRAWING_RETENTION_MS);
+    db.prepare('DELETE FROM draw_submission_idempotency WHERE created_at<=?').run(now - DRAWING_IDEMPOTENCY_MS);
+    if (drawing.requestId) {
+      const payloadHash = createHash('sha256').update(drawing.serialized).digest('hex');
+      const previous = db.prepare(`SELECT d.id, d.created_at, d.strokes, retry.payload_hash
+        FROM draw_submission_idempotency AS retry
+        JOIN draw_drawings AS d ON d.id=retry.drawing_id
+        WHERE retry.request_id=?`).get(drawing.requestId) as
+          (DrawingRow & { payload_hash: string }) | undefined;
+      if (previous) {
+        if (previous.payload_hash !== payloadHash) {
+          db.exec('ROLLBACK');
+          return { ok: false, reason: 'idempotency-conflict' };
+        }
+        db.exec('COMMIT');
+        return { ok: true, drawing: fromRow(previous), replayed: true };
+      }
+    }
     const last = db.prepare('SELECT submitted_at FROM draw_visitor_cooldowns WHERE visitor_digest=?')
       .get(visitorDigest) as { submitted_at: number } | undefined;
     if (last && last.submitted_at + DRAWING_COOLDOWN_MS > now) {
@@ -59,6 +79,10 @@ export function submitDrawing(
 
     const result = db.prepare('INSERT INTO draw_drawings(created_at, strokes) VALUES (?, ?)')
       .run(now, drawing.serialized);
+    if (drawing.requestId) {
+      db.prepare('INSERT INTO draw_submission_idempotency(request_id, payload_hash, drawing_id, created_at) VALUES (?, ?, ?, ?)')
+        .run(drawing.requestId, createHash('sha256').update(drawing.serialized).digest('hex'), Number(result.lastInsertRowid), now);
+    }
     db.prepare('INSERT INTO draw_visitor_cooldowns(visitor_digest, submitted_at) VALUES (?, ?) ON CONFLICT(visitor_digest) DO UPDATE SET submitted_at=excluded.submitted_at')
       .run(visitorDigest, now);
     db.prepare('DELETE FROM draw_visitor_cooldowns WHERE submitted_at<=?').run(now - DRAWING_COOLDOWN_MS);
@@ -67,7 +91,7 @@ export function submitDrawing(
     db.prepare('DELETE FROM draw_drawings WHERE id IN (SELECT id FROM draw_drawings ORDER BY id DESC LIMIT -1 OFFSET ?)')
       .run(DRAWING_CAP);
     db.exec('COMMIT');
-    return { ok: true, drawing: { id: Number(result.lastInsertRowid), createdAt: now, strokes: JSON.parse(drawing.serialized) as DrawingStroke[] } };
+    return { ok: true, drawing: { id: Number(result.lastInsertRowid), createdAt: now, strokes: JSON.parse(drawing.serialized) as DrawingStroke[] }, replayed: false };
   } catch (error) {
     db.exec('ROLLBACK');
     throw error;
@@ -76,8 +100,9 @@ export function submitDrawing(
 
 export function cleanupDrawings(db: DatabaseSync, now = Date.now()): number {
   const drawings = db.prepare('DELETE FROM draw_drawings WHERE created_at<?').run(now - DRAWING_RETENTION_MS);
+  const retries = db.prepare('DELETE FROM draw_submission_idempotency WHERE created_at<=?').run(now - DRAWING_IDEMPOTENCY_MS);
   const cooldowns = db.prepare('DELETE FROM draw_visitor_cooldowns WHERE submitted_at<=?').run(now - DRAWING_COOLDOWN_MS);
-  return Number(drawings.changes) + Number(cooldowns.changes);
+  return Number(drawings.changes) + Number(retries.changes) + Number(cooldowns.changes);
 }
 
 export function removeDrawing(db: DatabaseSync, id: number): boolean {

@@ -10,6 +10,7 @@ import {
   cleanupDrawings,
   DRAWING_CAP,
   DRAWING_COOLDOWN_MS,
+  DRAWING_IDEMPOTENCY_MS,
   DRAWING_PAGE_SIZE,
   DRAWING_RETENTION_MS,
   readDrawings,
@@ -32,6 +33,7 @@ const origin = 'http://localhost:4321';
 const options = (dbPath: string) => ({ dbPath, origin, cooldown: 10_000, writes: true, secure: false });
 const point = { x: 0, y: 0 };
 const simpleDrawing = { strokes: [{ tool: 'pen', color: 0, size: 1, points: [[10, 20], [30, 40]] }] };
+const drawingRequestId = '2f0632fa-d28f-4ce0-8a10-8bb51b8e87a5';
 
 function temporaryPath(prefix: string): { readonly root: string; readonly path: string } {
   const root = mkdtempSync(join(tmpdir(), prefix));
@@ -73,6 +75,9 @@ test('Drawing Board bounds vectors and rejects malformed input', () => {
   assert.equal(validateDrawing({ strokes: [{ ...simpleDrawing.strokes[0], points: [[0.5, 1]] }] }).ok, false);
   assert.equal(validateDrawing({ strokes: [{ ...simpleDrawing.strokes[0], tool: 'image' }] }).ok, false);
   assert.equal(validateDrawing({ strokes: [{ ...simpleDrawing.strokes[0], markup: '<svg/>' }] }).ok, false);
+  assert.equal(validateDrawing({ ...simpleDrawing, requestId: drawingRequestId }).ok, true);
+  assert.equal(validateDrawing({ ...simpleDrawing, requestId: 'not-a-uuid' }).ok, false);
+  assert.equal(validateDrawing({ ...simpleDrawing, requestId: drawingRequestId, ignored: true }).ok, false);
 
   const tooManyStrokes = Array.from({ length: 61 }, () => ({ ...simpleDrawing.strokes[0], points: [[1, 1]] }));
   assert.equal(validateDrawing({ strokes: tooManyStrokes }).ok, false);
@@ -110,6 +115,19 @@ test('Drawing Board accepts bounded submissions above the shared body limit and 
     const drawing = submitted.json().drawing as { id: number; strokes: unknown[] };
     assert.equal(drawing.strokes.length, 10);
     assert.equal(JSON.stringify(submitted.json()).includes(cookie), false);
+
+    const retryId = '4c74e03c-a818-44e7-a612-37cf8394ea55';
+    const firstAttempt = await write(app, '/api/draw/drawings', { ...simpleDrawing, requestId: retryId }, await visitorCookie(app));
+    assert.equal(firstAttempt.statusCode, 201, firstAttempt.body);
+    const replay = await write(app, '/api/draw/drawings', { ...simpleDrawing, requestId: retryId }, await visitorCookie(app));
+    assert.equal(replay.statusCode, 200, replay.body);
+    assert.equal(replay.json().drawing.id, firstAttempt.json().drawing.id);
+    assert.equal(replay.json().replayed, true);
+    const conflictingRetry = await write(app, '/api/draw/drawings', {
+      requestId: retryId,
+      strokes: [{ ...simpleDrawing.strokes[0], color: 1 }],
+    }, await visitorCookie(app));
+    assert.equal(conflictingRetry.statusCode, 409, conflictingRetry.body);
     const tooLarge = await write(app, '/api/draw/drawings', {
       strokes: Array.from({ length: 60 }, () => ({
         tool: 'pen', color: 0, size: 1, points: Array.from({ length: 120 }, () => [1, 1]),
@@ -188,6 +206,43 @@ test('Drawing Board removes sketches after the documented retention interval', (
       .run(Date.now() - DRAWING_RETENTION_MS - 1, JSON.stringify(simpleDrawing.strokes));
     cleanupDrawings(db);
     assert.equal((db.prepare('SELECT COUNT(*) AS count FROM draw_drawings WHERE id=?').get(Number(old.lastInsertRowid)) as { count: number }).count, 0);
+  } finally {
+    db.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Drawing Board retries are idempotent for one day, reject key reuse, and cascade on removal', () => {
+  const { root, path } = temporaryPath('open-web-draw-retry-');
+  const db = openDb(path);
+  const requestId = '5bd64794-969b-49d1-9edc-73a99979a834';
+  const drawing = validateDrawing({ ...simpleDrawing, requestId });
+  const changed = validateDrawing({ requestId, strokes: [{ ...simpleDrawing.strokes[0], color: 1 }] });
+  assert.equal(drawing.ok, true);
+  assert.equal(changed.ok, true);
+  if (!drawing.ok || !changed.ok) throw new Error('fixture drawings should validate');
+  try {
+    const first = submitDrawing(db, 'a'.repeat(64), drawing.value, 10_000);
+    assert.equal(first.ok, true);
+    if (!first.ok) throw new Error('first drawing should be accepted');
+    const replay = submitDrawing(db, 'b'.repeat(64), drawing.value, 10_001);
+    assert.deepEqual(replay, { ok: true, drawing: first.drawing, replayed: true });
+    assert.deepEqual(submitDrawing(db, 'b'.repeat(64), changed.value, 10_002), { ok: false, reason: 'idempotency-conflict' });
+    assert.equal((db.prepare('SELECT COUNT(*) AS count FROM draw_drawings').get() as { count: number }).count, 1);
+    assert.equal(removeDrawing(db, first.drawing.id), true);
+    assert.equal((db.prepare('SELECT COUNT(*) AS count FROM draw_submission_idempotency').get() as { count: number }).count, 0);
+
+    const expiring = validateDrawing({ ...simpleDrawing, requestId: 'fc344330-e776-4e2c-822b-17a37c86d6c2' });
+    assert.equal(expiring.ok, true);
+    if (!expiring.ok) throw new Error('expiring drawing should validate');
+    const accepted = submitDrawing(db, 'c'.repeat(64), expiring.value, 20_000);
+    assert.equal(accepted.ok, true);
+    cleanupDrawings(db, 20_000 + DRAWING_IDEMPOTENCY_MS + 1);
+    assert.equal((db.prepare('SELECT COUNT(*) AS count FROM draw_submission_idempotency').get() as { count: number }).count, 0);
+    assert.equal((db.prepare('SELECT COUNT(*) AS count FROM draw_drawings').get() as { count: number }).count, 1, 'retry cleanup leaves the public drawing intact');
+    const afterWindow = submitDrawing(db, 'd'.repeat(64), expiring.value, 20_000 + DRAWING_IDEMPOTENCY_MS + 2);
+    assert.equal(afterWindow.ok, true, 'the exact request key can be treated as new after the documented retry window');
+    assert.equal((db.prepare('SELECT COUNT(*) AS count FROM draw_drawings').get() as { count: number }).count, 2);
   } finally {
     db.close();
     rmSync(root, { recursive: true, force: true });

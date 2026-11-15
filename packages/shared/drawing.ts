@@ -17,4 +17,5 @@ export interface DrawingStroke {
 export interface ValidatedDrawing {
   readonly strokes: readonly DrawingStroke[];
   readonly serialized: string;
+  readonly requestId?: string;
 }

@@ -8,22 +8,46 @@ import { DatabaseSync } from 'node:sqlite';
 import { openDb } from '../apps/server/src/db.js';
 import { place } from '../apps/server/src/spaces/wall/database.js';
 
-test('ordered migrations upgrade existing data and fail closed on newer schemas',()=>{
+test('ordered migrations upgrade existing data and fail closed on unsupported schema versions',()=>{
  const root=mkdtempSync(join(tmpdir(),'open-web-migrate-')); const path=join(root,'wall.sqlite'); const dir=join(root,'migrations'); mkdirSync(dir);
  const url=pathToFileURL(dir+'/'); writeFileSync(join(dir,'001_initial.sql'),readFileSync(new URL('../database/migrations/001_initial.sql',import.meta.url)));
  try {
   let db=openDb(path,url);place(db,'visitor',1,2,3,1000,5000);db.close();
   db=openDb(path,new URL('../database/migrations/',import.meta.url));
-  assert.deepEqual(db.prepare('SELECT version FROM migrations ORDER BY version').all().map(r=>r.version),[1,2,3,4,5,6]);
+  assert.deepEqual(db.prepare('SELECT version FROM migrations ORDER BY version').all().map(r=>r.version),[1,2,3,4,5,6,7]);
   assert.equal((db.prepare('SELECT pixels FROM wall_tiles').get()!.pixels as Uint8Array)[201],3);db.close();
   const advanced=join(root,'advanced');mkdirSync(advanced);
   for(const name of ['001_initial.sql','002_cooldown_retention.sql','003_chat_messages.sql'])writeFileSync(join(advanced,name),readFileSync(new URL(`../database/migrations/${name}`,import.meta.url)));
   writeFileSync(join(advanced,'004_bottle_messages.sql'),readFileSync(new URL('./fixtures/004_bottle_messages.sql',import.meta.url)));
-  for(const name of ['005_expansion_phase_one.sql','006_final_spaces.sql'])writeFileSync(join(advanced,name),readFileSync(new URL(`../database/migrations/${name}`,import.meta.url)));
-  writeFileSync(join(advanced,'007_extra.sql'),'SELECT 1;');
+  for(const name of ['005_expansion_phase_one.sql','006_final_spaces.sql','007_quality_and_drawing_retries.sql'])writeFileSync(join(advanced,name),readFileSync(new URL(`../database/migrations/${name}`,import.meta.url)));
   db=openDb(path,pathToFileURL(advanced+'/'));assert.equal(db.prepare('SELECT MAX(version) version FROM migrations').get()!.version,7);db.close();
+  db=new DatabaseSync(path);db.prepare('INSERT INTO migrations(version) VALUES (8)').run();db.close();
   assert.throws(()=>openDb(path,new URL('../database/migrations/',import.meta.url)),/not supported/);
  } finally {rmSync(root,{recursive:true,force:true});}
+});
+
+test('quality migration indexes cascade keys and avoid Questions answer sorting tables',()=>{
+ const root=mkdtempSync(join(tmpdir(),'open-web-quality-indexes-'));const db=openDb(join(root,'quality.sqlite'));
+ try {
+  const indexedChildren=[
+   ['guestbook_idempotency','entry_id','guestbook_idempotency_entry_id_idx'],
+   ['story_idempotency','contribution_id','story_idempotency_contribution_id_idx'],
+   ['questions_item_idempotency','question_id','questions_item_idempotency_question_id_idx'],
+   ['questions_answer_idempotency','answer_id','questions_answer_idempotency_answer_id_idx'],
+   ['choice_proposal_idempotency','decision_id','choice_proposal_idempotency_decision_id_idx'],
+   ['choice_vote_idempotency','decision_id','choice_vote_idempotency_decision_id_idx'],
+  ] as const;
+  for(const [table,column,index] of indexedChildren){
+   const plan=db.prepare(`EXPLAIN QUERY PLAN SELECT rowid FROM ${table} WHERE ${column}=?`).all(1) as {detail:string}[];
+   assert.ok(plan.some(row=>row.detail.includes('USING')&&row.detail.includes(index)),`${table}.${column} should use ${index}: ${JSON.stringify(plan)}`);
+  }
+  const perQuestion=db.prepare('EXPLAIN QUERY PLAN SELECT id FROM questions_answers WHERE question_id=? ORDER BY updated_at DESC,id DESC').all(1) as {detail:string}[];
+  assert.ok(perQuestion.some(row=>row.detail.includes('questions_answers_question_updated_id_idx')));
+  assert.equal(perQuestion.some(row=>row.detail.includes('USE TEMP B-TREE')),false,JSON.stringify(perQuestion));
+  const globalPrune=db.prepare('EXPLAIN QUERY PLAN SELECT id FROM questions_answers ORDER BY updated_at DESC,id DESC LIMIT -1 OFFSET ?').all(20_000) as {detail:string}[];
+  assert.ok(globalPrune.some(row=>row.detail.includes('questions_answers_updated_id_idx')));
+  assert.equal(globalPrune.some(row=>row.detail.includes('USE TEMP B-TREE')),false,JSON.stringify(globalPrune));
+ }finally{db.close();rmSync(root,{recursive:true,force:true});}
 });
 test('failed migrations roll back and malformed tiles cannot be overwritten',()=>{
  const root=mkdtempSync(join(tmpdir(),'open-web-migrate-'));const path=join(root,'wall.sqlite');const dir=join(root,'migrations');mkdirSync(dir);const url=pathToFileURL(dir+'/');

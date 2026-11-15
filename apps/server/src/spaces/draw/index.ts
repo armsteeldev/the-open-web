@@ -40,8 +40,9 @@ export const drawSpace: SpaceModule = {
       const limit = submitBudget.take(request.ip, Date.now());
       if (!limit.allowed) return reply.code(429).send({ error: 'network limit', retryAfterMs: limit.retryAfterMs });
       const result = submitDrawing(context.db, visitor, validated.value);
+      if (!result.ok && result.reason === 'idempotency-conflict') return reply.code(409).send({ error: 'request key reused' });
       if (!result.ok) return reply.code(429).send({ error: 'cooldown', retryAfterMs: result.retryAfterMs });
-      return reply.code(201).send({ ok: true, drawing: result.drawing });
+      return reply.code(result.replayed ? 200 : 201).send({ ok: true, drawing: result.drawing, replayed: result.replayed });
     });
   },
   maintenance(context, now) {

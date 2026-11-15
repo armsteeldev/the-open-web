@@ -10,13 +10,15 @@ import {
   type DrawingStroke,
   type ValidatedDrawing,
 } from '../../../../../packages/shared/drawing.js';
+import { hasOnlyKeys, isUuidV4 } from '../plain-text.js';
 
 export type { DrawingStroke, ValidatedDrawing };
 
 export function validateDrawing(input: unknown): { readonly ok: true; readonly value: ValidatedDrawing } | { readonly ok: false } {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return { ok: false };
   const record = input as Record<string, unknown>;
-  if (Object.keys(record).length !== 1 || !Array.isArray(record.strokes)) return { ok: false };
+  if (!hasOnlyKeys(record, ['strokes', 'requestId']) || !Array.isArray(record.strokes)) return { ok: false };
+  if (Object.hasOwn(record, 'requestId') && !isUuidV4(record.requestId)) return { ok: false };
   if (record.strokes.length < 1 || record.strokes.length > DRAWING_MAX_STROKES) return { ok: false };
 
   let totalPoints = 0;
@@ -43,10 +45,11 @@ export function validateDrawing(input: unknown): { readonly ok: true; readonly v
     strokes.push({ tool: stroke.tool, color: Number(stroke.color), size: Number(stroke.size), points });
   }
 
-  const serializedRequest = JSON.stringify({ strokes });
+  const requestId = typeof record.requestId === 'string' ? record.requestId.toLowerCase() : undefined;
+  const serializedRequest = JSON.stringify({ ...(requestId ? { requestId } : {}), strokes });
   if (Buffer.byteLength(serializedRequest, 'utf8') > DRAWING_MAX_BYTES) return { ok: false };
   const serialized = JSON.stringify(strokes);
-  return { ok: true, value: { strokes, serialized } };
+  return { ok: true, value: { strokes, serialized, ...(requestId ? { requestId } : {}) } };
 }
 
 export function validateDrawingId(value: unknown): number | null {
