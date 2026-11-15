@@ -20,6 +20,8 @@ The check-only command verifies and packages the commit without contacting the p
 
 Bottle migration 004 requires a compatibility-first release sequence. Deploy and verify the compatibility bridge before deploying the Bottle commit; activation now refuses a migration-004 candidate when the active release cannot validate that exact schema on rollback. See [ROLLBACK-COMPATIBILITY.md](ROLLBACK-COMPATIBILITY.md) for the bridge commit and guarded two-step commands.
 
+The quality-campaign bridge extends that sequence through exact schema 007 while still shipping migrations only through 004 and activating only the established three spaces. Install and verify `codex/quality-campaign-rollback-bridge` before activating the ten-space candidate that applies 007. The candidate's release gate requires the active rollback target to contain the exact 007 fingerprint. See [ROLLBACK-COMPATIBILITY.md](ROLLBACK-COMPATIBILITY.md) for the guarded order and exact check-only commands.
+
 To choose a different approved backup directory:
 
 ```sh

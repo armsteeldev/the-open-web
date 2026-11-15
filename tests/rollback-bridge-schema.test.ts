@@ -33,13 +33,13 @@ function migrationsThrough004(directory: string): URL {
 
 function addLaterSchema(db: ReturnType<typeof openDb>, version: number): void {
   for (let migration = 5; migration <= version; migration += 1) {
-    const filename = migration === 5 ? '005_expansion_phase_one.sql' : '006_final_spaces.sql';
+    const filename = migration === 5 ? '005_expansion_phase_one.sql' : migration === 6 ? '006_final_spaces.sql' : '007_quality_and_drawing_retries.sql';
     db.exec(readFileSync(new URL(`./fixtures/${filename}`, import.meta.url), 'utf8'));
     db.prepare('INSERT INTO migrations(version) VALUES (?)').run(migration);
   }
 }
 
-for (const version of [4, 5, 6]) {
+for (const version of [4, 5, 6, 7]) {
   test(`the three-space rollback bridge starts on exact schema ${version} and leaves later data intact`, async () => {
     const root = join(tmpdir(), `open-web-bridge-schema-${version}-${process.pid}-${Date.now()}`);
     mkdirSync(root);
@@ -55,7 +55,10 @@ for (const version of [4, 5, 6]) {
     if (version >= 5) addLaterSchema(db, version);
     if (version >= 5) db.prepare('INSERT INTO guestbook_entries(created_at, body) VALUES (?, ?)').run(now, 'Guestbook data remains stored');
     if (version >= 6) {
-      db.prepare('INSERT INTO draw_drawings(created_at, strokes) VALUES (?, ?)').run(now, '[{"tool":"pen","color":0,"size":1,"points":[[20,30],[40,50]]}]');
+      const drawingId = Number(db.prepare('INSERT INTO draw_drawings(created_at, strokes) VALUES (?, ?)')
+        .run(now, '[{"tool":"pen","color":0,"size":1,"points":[[20,30],[40,50]]}]').lastInsertRowid);
+      if (version >= 7) db.prepare('INSERT INTO draw_submission_idempotency(request_id, payload_hash, drawing_id, created_at) VALUES (?, ?, ?, ?)')
+        .run('00000000-0000-4000-8000-000000000007', 'a'.repeat(64), drawingId, now);
       db.prepare('INSERT INTO garden_plants(x, y, plant_type, created_at) VALUES (?, ?, ?, ?)').run(1, 2, 'clover', now);
       db.prepare('INSERT INTO map_contributions(visitor_digest, country_code, updated_at) VALUES (?, ?, ?)').run('b'.repeat(64), 'SE', now);
     }
@@ -86,6 +89,7 @@ for (const version of [4, 5, 6]) {
         assert.equal(retained.prepare('SELECT COUNT(*) AS count FROM garden_plants').get()!.count, 1);
         assert.equal(retained.prepare('SELECT country_code FROM map_contributions').get()!.country_code, 'SE');
       }
+      if (version >= 7) assert.equal(retained.prepare('SELECT COUNT(*) AS count FROM draw_submission_idempotency').get()!.count, 1);
       assert.equal(retained.prepare('PRAGMA integrity_check').get()!.integrity_check, 'ok');
       assert.deepEqual(retained.prepare('PRAGMA foreign_key_check').all(), []);
     } finally {
@@ -102,14 +106,14 @@ test('the rollback bridge rejects altered later schemas and unknown migration ve
   try {
     const alteredPath = join(root, 'altered.sqlite');
     const altered = openDb(alteredPath);
-    addLaterSchema(altered, 6);
-    altered.exec('DROP INDEX draw_drawings_created_id');
+    addLaterSchema(altered, 7);
+    altered.exec('DROP INDEX draw_submission_idempotency_created');
     altered.close();
     assert.throws(() => openDb(alteredPath, migrations), /does not match its known compatibility schema/);
 
     const unknownPath = join(root, 'unknown.sqlite');
     const unknown = openDb(unknownPath);
-    unknown.prepare('INSERT INTO migrations(version) VALUES (7)').run();
+    unknown.prepare('INSERT INTO migrations(version) VALUES (8)').run();
     unknown.close();
     assert.throws(() => openDb(unknownPath, migrations), /not supported/);
   } finally {
