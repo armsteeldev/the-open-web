@@ -78,7 +78,7 @@ test('pre-Bottle Wall and Chat release opens exact migration 004 and preserves a
   db = openDb(path, migrationsUrl);
   db.prepare('INSERT INTO migrations(version) VALUES (5)').run();
   db.close();
-  assert.throws(() => openDb(path, migrationsUrl), /not supported/);
+  assert.throws(() => openDb(path, migrationsUrl), /does not match its known compatibility schema/);
   rmSync(root, { recursive: true, force: true });
 });
 
