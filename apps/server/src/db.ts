@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 // The bridge knows the exact released Bottle schema and one future additive schema.
 // Keep these fingerprints in sync with their respective tables, indexes, constraints, and keys.
 const BOTTLE_MIGRATION_004_SCHEMA = '990f41588a6c25778e5d2f1d5ba475da8797298021b429e354929c6b509be47e';
-const EXPANSION_MIGRATION_005_SCHEMA = '2336841e22df900a49217aeb803dcb7d3509e68b307c3361ee7ac188a28f56dd';
+const EXPANSION_MIGRATION_005_SCHEMA = 'de82a92961340220f02c40369d87637ffd1b65f9a890fa3537905ad987b9e229';
 
 function hasKnownBottleMigration004Schema(db: DatabaseSync): boolean {
  const rows = db.prepare(`SELECT type,name,tbl_name,sql FROM sqlite_schema
