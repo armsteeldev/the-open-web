@@ -9,10 +9,11 @@
     "dev:server": "tsx apps/server/src/index.ts",
     "dev:web": "astro dev --root apps/web --host 127.0.0.1",
     "build": "astro build --root apps/web && tsc -p tsconfig.server.json && node scripts/copy-migrations.mjs",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint apps/server/src packages/shared tests scripts eslint.config.js",
+    "typecheck": "tsc --noEmit && astro check --root apps/web",
+    "lint": "eslint apps/server/src packages/shared apps/web/src tests scripts eslint.config.js",
     "test": "tsx --test tests/*.test.ts",
     "test:browser": "node scripts/test-browser.mjs",
+    "test:cross-browser": "node scripts/test-cross-browser.mjs",
     "test:built": "node scripts/test-built.mjs",
     "test:load": "node scripts/load-test.mjs",
     "start": "node dist/apps/server/src/index.js",
@@ -26,6 +27,7 @@
     "fastify": "^5.6.0"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.12",
     "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.65.0",

@@ -70,6 +70,7 @@ for script in deploy/release.sh deploy/activate-release.sh deploy/rollback-relea
 npm run test:browser
 npm run test:production
 npm run test:built
+npm run test:cross-browser
 npm run test:load
 
 printf '{"commit":"%s"}\n' "$commit" > apps/web/dist/release.json
