@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -72,11 +72,11 @@ try {
   });
   await guestbook.reload();
   await guestbook.addStyleTag({ content: 'astro-dev-toolbar{display:none!important}' });
-  assert.equal(await guestbook.locator('#guestbook-list li').count(), 20);
+  await expect(guestbook.locator('#guestbook-list li')).toHaveCount(20);
   const olderGuestPage = guestbook.waitForResponse(response => response.url().includes('/api/guestbook/entries?before='));
   await guestbook.getByRole('button', { name: 'Older entries' }).click();
   assert.equal((await olderGuestPage).status(), 200);
-  assert.equal(await guestbook.locator('#guestbook-list li').count(), 4);
+  await expect(guestbook.locator('#guestbook-list li')).toHaveCount(4);
   await guestbook.getByRole('button', { name: 'Back to latest' }).waitFor();
   await shot(guestbook, 'guestbook-desktop-older-page.png');
 
@@ -167,8 +167,8 @@ try {
   await questions.getByRole('button', { name: 'Add your answer' }).click();
   assert.equal((await firstAnswer).status(), 200);
   await questions.locator('#answer-list').getByText('<img src=x onerror=alert(1)> A warm cup of tea.', { exact: true }).waitFor();
-  assert.equal(await questions.locator('#answer-list img').count(), 0);
-  assert.equal(await questions.locator(`.question-link[data-question-id="${questionId}"] .question-link-meta span`).nth(1).textContent(), '1 answer');
+  await expect(questions.locator('#answer-list img')).toHaveCount(0);
+  await expect(questions.locator(`.question-link[data-question-id="${questionId}"] .question-link-meta span`).nth(1)).toHaveText('1 answer');
   await shot(questions, 'questions-desktop-populated.png');
 
   const secondQuestionText = 'Which small sound feels like home?';
@@ -186,7 +186,7 @@ try {
   await questions.locator(`.question-link[data-question-id="${questionId}"]`).click();
   await questions.getByRole('heading', { name: 'What tiny thing made today better?' }).waitFor();
   await questions.locator(`.question-link[data-question-id="${secondQuestionId}"]`).click();
-  assert.equal(await questions.locator('#answer-input').inputValue(), 'The kettle beginning to sing.', 'an unsaved answer survives question changes');
+  await expect(questions.locator('#answer-input')).toHaveValue('The kettle beginning to sing.');
 
   await questions.route(`**/api/questions/${questionId}`, async route => {
     await new Promise(resolve => setTimeout(resolve, 180));
@@ -237,7 +237,7 @@ try {
   const olderQuestionPage = questions.waitForResponse(response => response.url().includes('/api/questions?before='));
   await questions.getByRole('button', { name: 'Older questions' }).click();
   assert.equal((await olderQuestionPage).status(), 200);
-  assert.ok((await questions.locator('#question-list li').count()) > 0);
+  await expect(questions.locator('#question-list li')).not.toHaveCount(0);
   await shot(questions, 'questions-desktop-older-page.png');
 
   // The Choice: one question, two direct choices, private-until-voted totals, then a small archive.
@@ -264,12 +264,12 @@ try {
   const desktopVote = choice.waitForResponse(response => response.url().endsWith(`/api/choice/decisions/${decisionId}/vote`));
   await choice.getByRole('button', { name: 'By the water' }).click();
   assert.equal((await desktopVote).status(), 200);
-  assert.deepEqual(await choice.locator('#option-a').getAttribute('aria-pressed'), 'true');
+  await expect(choice.locator('#option-a')).toHaveAttribute('aria-pressed', 'true');
   const changeVote = choice.waitForResponse(response => response.url().endsWith(`/api/choice/decisions/${decisionId}/vote`));
   await choice.getByRole('button', { name: 'Through the trees' }).click();
   assert.equal((await changeVote).status(), 200);
-  assert.equal(await choice.locator('#results-count').textContent(), '1 vote');
-  assert.match(await choice.locator('#result-count-b').textContent(), /100%/);
+  await expect(choice.locator('#results-count')).toHaveText('1 vote');
+  await expect(choice.locator('#result-count-b')).toHaveText(/100%/);
 
   const mobileChoice = await open(mobileContext, '/choice');
   await mobileChoice.getByRole('heading', { name: 'Which way home?' }).waitFor();
