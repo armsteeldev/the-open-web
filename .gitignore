@@ -3,6 +3,9 @@ apps/web/dist/
 apps/web/.astro/
 **/.astro/
 data/
+# The Visitors Map uses this generated boundary file at runtime.
+!apps/web/public/data/
+!apps/web/public/data/visitors-world.json
 .env
 *.sqlite*
 *.log
