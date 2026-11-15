@@ -355,6 +355,8 @@ async function loadGarden(): Promise<boolean> {
     const next = await response.json() as GardenState;
     loaded = true;
     retry.hidden = true;
+    feedback.textContent = '';
+    feedback.dataset.state = '';
     render(next);
     return true;
   } catch (error) {

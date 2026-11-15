@@ -192,6 +192,8 @@ try {
   const garden = await open(desktop, '/garden');
   await garden.getByRole('heading', { name: 'The Garden' }).waitFor();
   await garden.locator('#garden-count').getByText('A shared patch of ground', { exact: true }).waitFor();
+  await garden.waitForFunction(() => !document.querySelector('#plant-submit')?.disabled);
+  assert.equal(await garden.locator('#plant-feedback').textContent(), '', 'successful initial load clears the opening status');
   await shot(garden, 'garden-empty-desktop.png');
   const gardenPlotPixelCount = async (x, y) => garden.locator('#garden-scene').evaluate((canvas, plot) => {
     const context = canvas.getContext('2d');
