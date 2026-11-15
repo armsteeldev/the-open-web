@@ -4,7 +4,7 @@ import SpaceLayout from '../layouts/SpaceLayout.astro';
 <SpaceLayout title="Open Questions — The Open Web" layout="document">
   <main class="questions" aria-labelledby="questions-title">
     <header class="questions-heading">
-      <h1 id="questions-title">Open Questions</h1>
+      <h1 id="questions-title" tabindex="-1">Open Questions</h1>
       <button id="all-questions" type="button" hidden>All questions</button>
     </header>
     <div class="questions-layout" id="questions-layout">
@@ -25,7 +25,7 @@ import SpaceLayout from '../layouts/SpaceLayout.astro';
       <section id="question-detail" class="question-detail" aria-label="Selected question" hidden>
         <header class="question-detail-heading">
           <time id="question-time"></time>
-          <h2 id="question-text"></h2>
+          <h2 id="question-text" tabindex="-1"></h2>
         </header>
         <p id="answers-empty" class="answers-empty" hidden>No answers yet. You can be the first.</p>
         <ol id="answer-list" class="answer-list" aria-label="Answers"></ol>

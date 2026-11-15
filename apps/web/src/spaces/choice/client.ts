@@ -1,3 +1,5 @@
+export {};
+
 interface Results {
   readonly optionA: number;
   readonly optionB: number;

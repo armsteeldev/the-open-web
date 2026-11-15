@@ -35,7 +35,7 @@ const feedback = required<HTMLParagraphElement>('#map-feedback');
 const caption = required<HTMLElement>('#map-caption');
 
 const countryNames = new Intl.DisplayNames(undefined, { type: 'region' });
-let shapes = new Map<string, SVGPathElement>();
+const shapes = new Map<string, SVGPathElement>();
 let counts = new Map<string, number>();
 let state: MapState = { countries: [], total: 0, yourCountry: null };
 let selectedCountry = '';
@@ -118,14 +118,16 @@ function renderState(next: MapState): void {
   paintCounts();
 }
 
-async function loadState(): Promise<void> {
+async function loadState(): Promise<boolean> {
   try {
     const response = await fetch('/api/map/state', { headers: { Accept: 'application/json' } });
     if (!response.ok) throw new Error('The map is hard to reach. Try again in a moment.');
     renderState(await response.json() as MapState);
+    return true;
   } catch (error) {
     feedback.textContent = error instanceof Error ? error.message : 'The map is hard to reach.';
     feedback.dataset.state = 'error';
+    return false;
   }
 }
 
@@ -194,11 +196,15 @@ async function saveCountry(countryCode: string | null): Promise<void> {
     }
     if (response.status === 429) throw new Error('Please wait a little before changing your mark again.');
     if (!response.ok) throw new Error('Your choice could not be saved.');
-    await loadState();
-    feedback.textContent = countryCode === null
-      ? 'Your mark has been removed.'
-      : 'Your mark for ' + nameFor(countryCode) + ' is on the map.';
-    feedback.dataset.state = '';
+    const refreshed = await loadState();
+    feedback.textContent = refreshed
+      ? countryCode === null
+        ? 'Your mark has been removed.'
+        : 'Your mark for ' + nameFor(countryCode) + ' is on the map.'
+      : countryCode === null
+        ? 'Your mark was removed, but the map could not refresh. Reload to see the current totals.'
+        : 'Your choice for ' + nameFor(countryCode) + ' was saved, but the map could not refresh. Reload to see the current totals.';
+    feedback.dataset.state = refreshed ? '' : 'error';
   } catch (error) {
     feedback.textContent = error instanceof Error ? error.message : 'Your choice could not be saved.';
     feedback.dataset.state = 'error';

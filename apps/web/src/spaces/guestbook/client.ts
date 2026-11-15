@@ -1,3 +1,5 @@
+export {};
+
 interface GuestbookEntry {
   readonly id: number;
   readonly createdAt: number;
@@ -22,7 +24,6 @@ const olderButton = document.querySelector<HTMLButtonElement>('#older-entries')!
 const latestButton = document.querySelector<HTMLButtonElement>('#latest-entries')!;
 
 if (form && nameInput && messageInput && submitButton && list && empty && feedback && readFeedback && olderButton && latestButton) {
-  let before: number | null = null;
   let nextBefore: number | null = null;
   let submitting = false;
   let pending: { fingerprint: string; requestId: string } | null = null;
@@ -58,7 +59,6 @@ if (form && nameInput && messageInput && submitButton && list && empty && feedba
   }
 
   async function loadEntries(cursor: number | null): Promise<void> {
-    before = cursor;
     const url = new URL('/api/guestbook/entries', location.origin);
     if (cursor !== null) url.searchParams.set('before', String(cursor));
     setStatus(readFeedback, '');

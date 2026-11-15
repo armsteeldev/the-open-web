@@ -1,3 +1,5 @@
+export {};
+
 interface Question {
   readonly id: number;
   readonly createdAt: number;
@@ -44,20 +46,35 @@ const answerLabel = document.querySelector<HTMLLabelElement>('#answer-label')!;
 const answerSubmit = document.querySelector<HTMLButtonElement>('#answer-submit')!;
 const answerFeedback = document.querySelector<HTMLParagraphElement>('#answer-feedback')!;
 const allQuestions = document.querySelector<HTMLButtonElement>('#all-questions')!;
+const questionsTitle = document.querySelector<HTMLHeadingElement>('#questions-title')!;
 
-if (layout && questionForm && questionInput && questionSubmit && questionFeedback && list && questionsEmpty && listFeedback && olderButton && detail && detailEmpty && questionTitle && questionTime && answers && answersEmpty && answerForm && answerInput && answerLabel && answerSubmit && answerFeedback && allQuestions) {
+if (layout && questionForm && questionInput && questionSubmit && questionFeedback && list && questionsEmpty && listFeedback && olderButton && detail && detailEmpty && questionTitle && questionTime && answers && answersEmpty && answerForm && answerInput && answerLabel && answerSubmit && answerFeedback && allQuestions && questionsTitle) {
   let before: number | null = null;
   let nextBefore: number | null = null;
   let selectedId: number | null = null;
   let questionPending: { fingerprint: string; requestId: string } | null = null;
   let answerPending: { fingerprint: string; requestId: string } | null = null;
   let busy = false;
+  let detailLoading = false;
+  let questionRequestVersion = 0;
+  let savedAnswerText = '';
+  const drafts = new Map<number, string>();
 
   const setStatus = (element: HTMLElement, message: string, state = '') => {
     element.textContent = message;
     element.dataset.state = state;
   };
   const formatTime = (timestamp: number) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(timestamp));
+  const syncAnswerControls = () => {
+    const disabled = busy || detailLoading || selectedId === null;
+    answerInput.disabled = disabled;
+    answerSubmit.disabled = disabled;
+  };
+  const rememberCurrentDraft = () => {
+    if (selectedId === null) return;
+    if (answerInput.value === savedAnswerText) drafts.delete(selectedId);
+    else drafts.set(selectedId, answerInput.value);
+  };
 
   function makeQuestionRow(item: Question): HTMLLIElement {
     const row = document.createElement('li');
@@ -99,7 +116,7 @@ if (layout && questionForm && questionInput && questionSubmit && questionFeedbac
     }
   }
 
-  function renderQuestion(data: QuestionDetail): void {
+  function renderQuestion(data: QuestionDetail, focus = true): void {
     selectedId = data.question.id;
     questionTitle.textContent = data.question.text;
     questionTime.dateTime = new Date(data.question.createdAt).toISOString();
@@ -120,7 +137,8 @@ if (layout && questionForm && questionInput && questionSubmit && questionFeedbac
     detailEmpty.hidden = true;
     layout.dataset.focused = 'true';
     allQuestions.hidden = false;
-    answerInput.value = data.viewerAnswer?.text ?? '';
+    savedAnswerText = data.viewerAnswer?.text ?? '';
+    answerInput.value = drafts.has(data.question.id) ? drafts.get(data.question.id)! : savedAnswerText;
     const editing = data.viewerAnswer !== null;
     answerLabel.textContent = editing ? 'Your current answer' : 'Your answer';
     answerSubmit.textContent = editing ? 'Update your answer' : 'Add your answer';
@@ -128,26 +146,55 @@ if (layout && questionForm && questionInput && questionSubmit && questionFeedbac
       if (Number(link.dataset.questionId) === selectedId) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     }
+    if (focus) questionTitle.focus();
   }
 
-  async function loadQuestion(id: number, updateUrl = true): Promise<void> {
+  async function loadQuestion(id: number, updateUrl = true, focus = true): Promise<void> {
+    rememberCurrentDraft();
+    const requestVersion = ++questionRequestVersion;
+    detailLoading = true;
+    syncAnswerControls();
     try {
       const response = await fetch(`/api/questions/${id}`, { headers: { Accept: 'application/json' } });
+      if (requestVersion !== questionRequestVersion) return;
       if (response.status === 404) {
         selectedId = null;
         detail.hidden = true;
         detailEmpty.hidden = false;
+        allQuestions.hidden = true;
         layout.dataset.focused = 'false';
+        if (updateUrl) history.replaceState(null, '', '/questions');
         setStatus(listFeedback, 'That question is no longer available.', 'error');
+        questionsTitle.focus();
         return;
       }
       if (!response.ok) throw new Error('question');
-      renderQuestion(await response.json() as QuestionDetail);
+      const data = await response.json() as QuestionDetail;
+      if (requestVersion !== questionRequestVersion) return;
+      renderQuestion(data, focus);
       if (updateUrl) history.pushState(null, '', `/questions?id=${id}`);
       setStatus(answerFeedback, '');
     } catch {
-      setStatus(listFeedback, 'That question is hard to reach. Try again in a moment.', 'error');
+      if (requestVersion === questionRequestVersion) setStatus(listFeedback, 'That question is hard to reach. Try again in a moment.', 'error');
+    } finally {
+      if (requestVersion === questionRequestVersion) {
+        detailLoading = false;
+        syncAnswerControls();
+      }
     }
+  }
+
+  function showQuestionIndex(): void {
+    rememberCurrentDraft();
+    questionRequestVersion += 1;
+    detailLoading = false;
+    selectedId = null;
+    detail.hidden = true;
+    detailEmpty.hidden = false;
+    allQuestions.hidden = true;
+    layout.dataset.focused = 'false';
+    syncAnswerControls();
+    questionsTitle.focus();
   }
 
   list.addEventListener('click', event => {
@@ -161,24 +208,16 @@ if (layout && questionForm && questionInput && questionSubmit && questionFeedbac
     if (nextBefore !== null) void loadQuestions(nextBefore);
   });
   allQuestions.addEventListener('click', () => {
-    selectedId = null;
-    detail.hidden = true;
-    detailEmpty.hidden = false;
-    allQuestions.hidden = true;
-    layout.dataset.focused = 'false';
+    showQuestionIndex();
     history.pushState(null, '', '/questions');
   });
   window.addEventListener('popstate', () => {
     const id = new URL(location.href).searchParams.get('id');
     if (id && /^[1-9]\d{0,15}$/.test(id)) void loadQuestion(Number(id), false);
-    else {
-      selectedId = null;
-      detail.hidden = true;
-      detailEmpty.hidden = false;
-      allQuestions.hidden = true;
-      layout.dataset.focused = 'false';
-    }
+    else showQuestionIndex();
   });
+
+  answerInput.addEventListener('input', rememberCurrentDraft);
 
   questionForm.addEventListener('submit', async event => {
     event.preventDefault();
@@ -193,6 +232,7 @@ if (layout && questionForm && questionInput && questionSubmit && questionFeedbac
     if (!questionPending || questionPending.fingerprint !== fingerprint) questionPending = { fingerprint, requestId: crypto.randomUUID() };
     busy = true;
     questionSubmit.disabled = true;
+    syncAnswerControls();
     setStatus(questionFeedback, 'Asking…');
     try {
       const response = await fetch('/api/questions', {
@@ -217,25 +257,27 @@ if (layout && questionForm && questionInput && questionSubmit && questionFeedbac
     } finally {
       busy = false;
       questionSubmit.disabled = false;
+      syncAnswerControls();
     }
   });
 
   answerForm.addEventListener('submit', async event => {
     event.preventDefault();
     if (busy || selectedId === null) return;
+    const questionId = selectedId;
     const text = answerInput.value;
     if (!text.trim()) {
       setStatus(answerFeedback, 'Write a response before sending.', 'error');
       answerInput.focus();
       return;
     }
-    const fingerprint = JSON.stringify([selectedId, text]);
+    const fingerprint = JSON.stringify([questionId, text]);
     if (!answerPending || answerPending.fingerprint !== fingerprint) answerPending = { fingerprint, requestId: crypto.randomUUID() };
     busy = true;
-    answerSubmit.disabled = true;
+    syncAnswerControls();
     setStatus(answerFeedback, 'Saving your answer…');
     try {
-      const response = await fetch(`/api/questions/${selectedId}/answers`, {
+      const response = await fetch(`/api/questions/${questionId}/answers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ requestId: answerPending.requestId, text }),
@@ -248,14 +290,18 @@ if (layout && questionForm && questionInput && questionSubmit && questionFeedbac
         return;
       }
       answerPending = null;
-      await loadQuestion(selectedId, false);
+      if (drafts.get(questionId) === text) drafts.delete(questionId);
+      if (selectedId === questionId) {
+        savedAnswerText = text;
+        await loadQuestion(questionId, false, false);
+      }
       await loadQuestions(before);
       setStatus(answerFeedback, 'Your answer is here.', 'success');
     } catch {
       setStatus(answerFeedback, 'Your answer could not be saved. It is still here.', 'error');
     } finally {
       busy = false;
-      answerSubmit.disabled = false;
+      syncAnswerControls();
     }
   });
 

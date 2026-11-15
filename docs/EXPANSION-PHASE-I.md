@@ -28,6 +28,8 @@ Expansion Phase I adds four independent public spaces to the shared Astro, Fasti
 
 `/questions` pairs a compact question index with a focused question and its answers. Selecting a question uses a direct `?id=` URL, and the mobile view switches to that question with an “All questions” return control.
 
+The browser keeps unfinished answer drafts by question while the page stays open, ignores detail responses that arrive after a newer selection, and moves keyboard focus to the newly opened question. Returning to the index restores focus to its visible heading.
+
 - `GET /api/questions?before={id}` returns a newest-first page of 12 questions. `GET /api/questions/{id}` returns the question, its answers, and only the current visitor's own answer.
 - `POST /api/questions` accepts `{requestId, text}`; `POST /api/questions/{id}/answers` accepts `{requestId, text}`.
 - Questions are limited to 180 code points / 420 bytes; answers to 300 code points / 500 bytes. One current answer is allowed per question and cookie digest. A visitor can edit that answer after the five-second answer cooldown. Clearing the cookie can create another answer; this is a browser-cookie limit, not a verified-person limit.
@@ -49,7 +51,7 @@ Expansion Phase I adds four independent public spaces to the shared Astro, Fasti
 
 All submitted text is normalized and rendered as text; markup, scripts, and external embeds are not supported. Request keys are UUIDs and payloads stay within the shared 1 KiB request bound. Same-origin checks, the shared write gate, process request limits, and bounded per-space network budgets apply. The new spaces do not use WebSockets.
 
-Migration 005 creates only the four `guestbook_*`, `story_*`, `questions_*`, and `choice_*` table groups. It does not rewrite existing Wall, Chat, or Bottle tables or rows. The original Phase I bridge procedure has been superseded by the [final expansion compatibility sequence](ROLLBACK-COMPATIBILITY.md), which keeps the established three spaces active while recognizing exact migrations 004, 005, and 006 for rollback.
+Migration 005 creates only the four `guestbook_*`, `story_*`, `questions_*`, and `choice_*` table groups. It does not rewrite existing Wall, Chat, or Bottle tables or rows. The original Phase I bridge procedure has been superseded by the [quality-campaign compatibility sequence](ROLLBACK-COMPATIBILITY.md), which keeps the established three spaces active while recognizing exact schemas 004 through 007 for rollback.
 
 ## Visual review
 

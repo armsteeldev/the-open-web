@@ -11,6 +11,8 @@ Visitors draw freely on a 1000 × 700 logical paper using a pointer, touch, pen,
 The keyboard alternative focuses the paper, moves the brush with the arrow keys, uses Space to start or extend a line, and Escape to end it. Gallery cards open an accessible dialog and render only validated vector primitives on a controlled Canvas; visitor markup, SVG, and image files are never accepted.
 
 - POST /api/draw/drawings accepts bounded strokes. The route has a 24 KiB body limit only for this endpoint; the shared body limit remains 1 KiB. Normalized vector data is limited to 20,000 bytes, 60 strokes, 120 points per stroke, 1,000 points total, the fixed paper bounds, six colour indices, and three brush sizes.
+- The browser paints pointer segments incrementally and splits long strokes at the 120-point boundary while repeating their join point. It preserves the actual sampled vector data and stops with clear feedback when the total point or stroke bound is reached; it does not simplify or reshape a visitor's path.
+- New clients attach a UUID v4 `requestId`. The first accepted submission returns 201; a retry with the same key and same canonical strokes returns the original drawing with 200, even if the anonymous cookie is unavailable. Reusing a key for different strokes returns 409; the client keeps the sketch and rotates the key before its next attempt. Retry rows expire after 24 hours, contain no cookie digest, and are removed with their drawing. Older open tabs may still submit without a request key.
 - GET /api/draw/drawings and GET /api/draw/drawings/{id} read the collection. Gallery pages contain 12 drawings and use a bounded before-ID cursor.
 - A browser may submit once every five minutes; an address can submit up to eight per hour. Drawings contain no visitor digest. Short-lived cooldown digests are private and capped at 50,000.
 - Retention is the first of 180 days or 1,500 stored drawings. New work removes expired or oldest rows transactionally. There are no likes, rankings, or view counts.
@@ -32,7 +34,7 @@ The keyboard alternative focuses the paper, moves the brush with the arrow keys,
 
 Route: /garden
 
-The garden is an 18 × 10 field of bounded plots, drawn procedurally on Canvas. Visitors choose one of five simple plants—clover, wildflower, sunflower, grass, or sapling—and an open plot. A tap can select a plot, while the adjacent selector provides a precise keyboard and screen-reader alternative. A plant is placed once; concurrent attempts for the same plot are serialized and only one can succeed.
+The garden is an 18 × 10 shared field, drawn procedurally on Canvas. Visitors choose one of five simple plants—clover, wildflower, sunflower, grass, or sapling—and an open plot. Plant shapes, height, lean, foliage, petal count, colour, and within-plot position vary deterministically from the plot and species, so the scene stays stable across reloads while avoiding identical repeated sprites. Soft soil variation and broken contours keep the planting grid useful without drawing a dot at every cell. A tap can select a plot, while the adjacent selector provides a precise keyboard and screen-reader alternative. Planting stays disabled until the authoritative snapshot loads; a failed read offers an in-page retry. A plant is placed once; concurrent attempts for the same plot are serialized and only one can succeed.
 
 The server calculates the growth stage from the plant's creation time on every state read. No timer or visitor session is needed:
 
@@ -44,7 +46,7 @@ The server calculates the growth stage from the plant's creation time on every s
 
 Growth is deterministic. Expired rows are removed during reads, writes, and routine in-process maintenance. The garden has a finite capacity of 180 plants. When it is full, a planting request is refused with a clear message; no active plant is silently replaced. A plot opens when a plant reaches its 90-day limit.
 
-- GET /api/garden/state returns the shared snapshot.
+- GET /api/garden/state returns the shared snapshot. If a plant is saved but its follow-up snapshot fails, the page says the write succeeded and prompts a reload rather than showing stale state as current.
 - POST /api/garden/plants accepts an integer plot position and one of the five plant types.
 - A browser can plant once every 30 minutes. The per-address bucket has a burst of five and refills at one request per minute. Cooldown digests are private, expire with the cooldown, and are capped at 50,000. Plant records do not contain visitor digests.
 - Remove a plant in the operator shell with: DB_PATH=/absolute/path/to/open-web.sqlite node /opt/the-open-web/current/dist/apps/server/src/spaces/garden/remove-plant.js PLANT_ID
@@ -69,6 +71,7 @@ The country list uses the 249 ISO 3166-1 alpha-2 codes. The bundled, simplified 
 
 - GET /api/map/state returns sorted country aggregates, their total, and the requesting browser's own country if it has one. It does not create a cookie or contribution.
 - POST /api/map/contribution accepts one ISO alpha-2 country code, or null to remove the current browser's mark. A later choice changes that browser's existing row.
+- After a successful mark change, a failed follow-up read is reported as saved-but-stale and prompts a reload; the page does not imply its old aggregate is current.
 - Writes are limited to ten per network address per hour using bounded process memory. Network addresses are not stored.
 - The database keeps one private cookie digest per contribution so a visitor can later change or remove the choice. No IP address is stored. Clearing the browser cookie may make an old mark unchangeable and can allow a second mark; these are browser-level limits, not verified-person totals.
 - Contributions are retained without automatic expiry and capped at 100,000 rows. At capacity, new marks are refused; existing visitors may change or remove their own mark. Operators can remove or correct a contribution in a private shell using its digest: DB_PATH=/absolute/path/to/open-web.sqlite node /opt/the-open-web/current/dist/apps/server/src/spaces/map/remove-contribution.js SHA256_VISITOR_DIGEST. Do not put that digest into public logs or reports.
@@ -85,6 +88,6 @@ The country list uses the 249 ISO 3166-1 alpha-2 codes. The bundled, simplified 
 
 ## Storage and operation
 
-Migration 006 owns only three table groups: draw_drawings and draw_visitor_cooldowns; garden_plants and garden_visitor_cooldowns; map_contributions. All are strict SQLite tables with bounded fields and space-prefixed indexes. The map digest is private and necessary for later changes; drawings and plants do not retain visitor digests. See [DATABASE.md](DATABASE.md), [IDENTITY-PRIVACY.md](IDENTITY-PRIVACY.md), and [ROLLBACK-COMPATIBILITY.md](ROLLBACK-COMPATIBILITY.md).
+Migration 006 owns only three table groups: draw_drawings and draw_visitor_cooldowns; garden_plants and garden_visitor_cooldowns; map_contributions. Migration 007 adds Drawing Board retry keys and supporting indexes for the older spaces. All tables are strict SQLite tables with bounded fields and space-prefixed indexes. The map digest is private and necessary for later changes; drawings and plants do not retain visitor digests. See [DATABASE.md](DATABASE.md), [IDENTITY-PRIVACY.md](IDENTITY-PRIVACY.md), and [ROLLBACK-COMPATIBILITY.md](ROLLBACK-COMPATIBILITY.md).
 
 The browser review covers mouse drawing, keyboard drawing, touch drawing, submission, undo/redo/clear, gallery viewing, touch plot selection and planting, map and picker selection, country add/change/remove, empty and populated scenes, and five viewport sizes. Axe checks run on desktop and mobile for every active space. Screenshots and synthetic state are under docs/screenshots/final-spaces/.

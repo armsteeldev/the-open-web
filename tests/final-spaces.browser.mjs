@@ -24,7 +24,10 @@ async function open(context, path) {
   page.on('console', message => {
     const expectedGardenCooldown = path === '/garden' && page.__expectedGardenCooldowns > 0 && message.text().includes('status of 429 (Too Many Requests)');
     if (expectedGardenCooldown) page.__expectedGardenCooldowns -= 1;
-    if (message.type() === 'error' && !message.text().includes('WebSocket') && !expectedGardenCooldown) errors.push(path + ': ' + message.text());
+    const expectedInjectedFailure =
+      (path === '/draw' && (message.text().includes('status of 409 (Conflict)') || message.text().includes('status of 502 (Bad Gateway)'))) ||
+      ((path === '/garden' || path === '/map') && message.text().includes('status of 503 (Service Unavailable)'));
+    if (message.type() === 'error' && !message.text().includes('WebSocket') && !expectedGardenCooldown && !expectedInjectedFailure) errors.push(path + ': ' + message.text());
   });
   page.on('request', request => {
     if (new URL(request.url()).origin !== new URL(base).origin) externalRequests.push(request.url());
@@ -94,8 +97,8 @@ try {
   assert.ok(paperBox);
   await draw.mouse.move(paperBox.x + paperBox.width * 0.16, paperBox.y + paperBox.height * 0.22);
   await draw.mouse.down();
-  for (let step = 1; step <= 8; step++) {
-    await draw.mouse.move(paperBox.x + paperBox.width * (0.16 + step * 0.075), paperBox.y + paperBox.height * (0.22 + step * 0.055));
+  for (let step = 1; step <= 125; step++) {
+    await draw.mouse.move(paperBox.x + paperBox.width * (0.16 + step * 0.005), paperBox.y + paperBox.height * (0.22 + step * 0.0015));
   }
   await draw.mouse.up();
   await draw.getByRole('button', { name: 'Blue' }).click();
@@ -115,9 +118,54 @@ try {
   await draw.setViewportSize({ width: 1365, height: 900 });
   await draw.locator('#draw-surface').waitFor();
   await shot(draw, 'drawing-board-in-progress-desktop.png');
-  const drawingResponse = draw.waitForResponse(response => response.url().endsWith('/api/draw/drawings') && response.request().method() === 'POST');
+  const drawingCount = () => {
+    const db = new DatabaseSync(databasePath);
+    try { return Number(db.prepare('SELECT COUNT(*) AS count FROM draw_drawings').get().count); }
+    finally { db.close(); }
+  };
+  const beforeLostResponse = drawingCount();
+  const drawingRequestIds = [];
+  let conflictFirstKey = true;
+  let loseFirstAcknowledgement = true;
+  await draw.route('**/api/draw/drawings', async route => {
+    if (route.request().method() === 'POST') {
+      drawingRequestIds.push(JSON.parse(route.request().postData()).requestId);
+      if (conflictFirstKey) {
+        conflictFirstKey = false;
+        await route.fulfill({ status: 409, contentType: 'application/json', body: '{"error":"test request key conflict"}' });
+        return;
+      }
+      if (loseFirstAcknowledgement) {
+        loseFirstAcknowledgement = false;
+        await route.fetch();
+        await route.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"test lost acknowledgement"}' });
+        return;
+      }
+    }
+    await route.continue();
+  });
+  const conflictingDrawingResponse = draw.waitForResponse(response => response.url().endsWith('/api/draw/drawings') && response.request().method() === 'POST' && response.status() === 409);
   await draw.getByRole('button', { name: 'Leave it' }).click();
-  assert.equal((await drawingResponse).status(), 201);
+  assert.equal((await conflictingDrawingResponse).status(), 409);
+  await draw.getByText('A retry key conflicted with an earlier request. Your sketch is still here; try again.', { exact: true }).waitFor();
+  assert.equal(await draw.locator('#submit-drawing').isEnabled(), true, 'a retry-key conflict preserves the sketch');
+  const lostDrawingResponse = draw.waitForResponse(response => response.url().endsWith('/api/draw/drawings') && response.request().method() === 'POST');
+  await draw.getByRole('button', { name: 'Leave it' }).click();
+  assert.equal((await lostDrawingResponse).status(), 502);
+  await draw.locator('#draw-feedback[data-state="error"]').waitFor();
+  assert.equal(await draw.locator('#submit-drawing').isEnabled(), true, 'the sketch remains available after a lost acknowledgement');
+  assert.equal(drawingCount(), beforeLostResponse + 1, 'the first request reached the server once');
+  const replayedDrawingResponse = draw.waitForResponse(response => response.url().endsWith('/api/draw/drawings') && response.request().method() === 'POST' && response.status() === 200);
+  await draw.getByRole('button', { name: 'Leave it' }).click();
+  const replayedDrawing = await replayedDrawingResponse;
+  assert.equal(drawingRequestIds.length, 3);
+  assert.notEqual(drawingRequestIds[0], drawingRequestIds[1], 'a conflicted request key is replaced');
+  assert.equal(drawingRequestIds[1], drawingRequestIds[2], 'a lost acknowledgement retry reuses the accepted key');
+  const replayPayload = await replayedDrawing.json();
+  assert.equal(replayPayload.replayed, true);
+  assert.equal(replayPayload.drawing.strokes[0].points.length, 120, 'long pointer strokes split at the server limit without losing their path');
+  assert.equal(replayPayload.drawing.strokes.length, 3, 'the continued segment and second line are both retained');
+  assert.equal(drawingCount(), beforeLostResponse + 1, 'retry does not create a duplicate drawing');
   await draw.getByRole('button', { name: 'Browse' }).waitFor({ state: 'visible' });
   await draw.locator('.drawing-card').first().waitFor();
   await draw.locator('.drawing-card').first().click();
@@ -145,10 +193,46 @@ try {
   await garden.getByRole('heading', { name: 'The Garden' }).waitFor();
   await garden.locator('#garden-count').getByText('A shared patch of ground', { exact: true }).waitFor();
   await shot(garden, 'garden-empty-desktop.png');
+  const gardenPlotPixelCount = async (x, y) => garden.locator('#garden-scene').evaluate((canvas, plot) => {
+    const context = canvas.getContext('2d');
+    if (!context) return 0;
+    const scaleX = canvas.width / 1000;
+    const scaleY = canvas.height / 560;
+    const left = Math.max(0, Math.round((plot.x - 23) * scaleX));
+    const top = Math.max(0, Math.round((plot.y - 12) * scaleY));
+    const width = Math.min(canvas.width - left, Math.round(46 * scaleX));
+    const height = Math.min(canvas.height - top, Math.round(24 * scaleY));
+    const pixels = context.getImageData(left, top, width, height).data;
+    let matches = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index] < 110 && pixels[index + 1] < 125 && pixels[index + 2] < 100) matches += 1;
+    }
+    return matches;
+  }, { x, y });
+  const gardenCanvasBox = await garden.locator('#garden-scene').boundingBox();
+  assert.ok(gardenCanvasBox);
+  await garden.locator('#garden-scene').click({ position: { x: gardenCanvasBox.width * 54 / 1000, y: gardenCanvasBox.height * 448 / 560 } });
+  assert.ok(await gardenPlotPixelCount(54, 448) > 0, 'clicking a patch shows its selection outline');
+  await garden.locator('#plant-location').selectOption('1,0');
+  assert.equal(await gardenPlotPixelCount(54, 448), 0, 'changing the selector removes the old canvas highlight');
+  assert.ok(await gardenPlotPixelCount(106.5, 448) > 0, 'the canvas highlight follows the selected patch');
   await garden.locator('#plant-type').selectOption('wildflower');
+  let failNextGardenRefresh = false;
+  await garden.route('**/api/garden/state', async route => {
+    if (failNextGardenRefresh) {
+      failNextGardenRefresh = false;
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"test refresh failure"}' });
+      return;
+    }
+    await route.continue();
+  });
   const plantingResponse = garden.waitForResponse(response => response.url().endsWith('/api/garden/plants') && response.request().method() === 'POST');
+  failNextGardenRefresh = true;
   await garden.getByRole('button', { name: 'Plant it' }).click();
   assert.equal((await plantingResponse).status(), 201);
+  await garden.getByText(/was planted in patch .* but the garden could not refresh/).waitFor();
+  await garden.reload();
+  await garden.addStyleTag({ content: 'astro-dev-toolbar{display:none!important}' });
   await garden.getByText('1 plant growing', { exact: true }).waitFor();
   assert.equal(await garden.getByRole('button', { name: 'Plant it' }).isEnabled(), true, 'the form remains available for a later return after the cooldown');
   await shot(garden, 'garden-new-seed-desktop.png');
@@ -210,10 +294,24 @@ try {
   await shot(map, 'visitors-map-country-selected.png');
   await map.locator('#country-select').selectOption('CA');
   await shot(map, 'visitors-map-contribution-desktop.png');
+  let failNextMapRefresh = false;
+  await map.route('**/api/map/state', async route => {
+    if (failNextMapRefresh) {
+      failNextMapRefresh = false;
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"test refresh failure"}' });
+      return;
+    }
+    await route.continue();
+  });
   const addMapMark = map.waitForResponse(response => response.url().endsWith('/api/map/contribution') && response.request().method() === 'POST');
+  failNextMapRefresh = true;
   await map.getByRole('button', { name: 'Add my country' }).click();
   assert.equal((await addMapMark).status(), 200);
-  await map.getByText('Your mark for Canada is on the map.', { exact: true }).waitFor();
+  await map.getByText(/was saved, but the map could not refresh/).waitFor();
+  await map.reload();
+  await map.addStyleTag({ content: 'astro-dev-toolbar{display:none!important}' });
+  await map.locator('#remove-country').waitFor({ state: 'visible' });
+  assert.equal(await map.locator('#country-select').inputValue(), 'CA', 'the saved country returns after reload');
   await map.locator('#country-select').selectOption('ES');
   await map.getByRole('button', { name: 'Move my mark here' }).click();
   await map.getByText('Your mark for Spain is on the map.', { exact: true }).waitFor();
@@ -253,16 +351,37 @@ try {
   await mobileDraw.getByRole('button', { name: 'Leave it' }).click();
   assert.equal((await mobileDrawing).status(), 201);
   const mobileGarden = await open(mobile, '/garden');
+  await mobileGarden.waitForFunction(() => document.querySelector('#plant-location') instanceof HTMLSelectElement && !document.querySelector('#plant-location').disabled);
   const mobileGardenCanvas = mobileGarden.locator('#garden-scene');
   const canvasBox = await mobileGardenCanvas.boundingBox();
   assert.ok(canvasBox);
-  await mobileGardenCanvas.tap({ position: { x: canvasBox.width * 0.106, y: canvasBox.height * 0.8 } });
-  assert.equal(await mobileGarden.locator('#plant-location').inputValue(), '1,0', 'a tap selects an open patch without fine controls');
+  const openPatch = await mobileGarden.locator('#plant-location').inputValue();
+  const [plotX, plotY] = openPatch.split(',').map(Number);
+  const plotPosition = { x: canvasBox.width * (54 + plotX * 52.5) / 1000, y: canvasBox.height * (448 - plotY * 31) / 560 };
+  await mobileGardenCanvas.tap({ position: plotPosition });
+  assert.equal(await mobileGarden.locator('#plant-location').inputValue(), openPatch, 'a tap selects an open patch without fine controls');
   await mobileGarden.locator('#plant-type').selectOption('sunflower');
   await shot(mobileGarden, 'garden-mobile-planting-interaction.png');
   const mobilePlant = mobileGarden.waitForResponse(response => response.url().endsWith('/api/garden/plants') && response.request().method() === 'POST');
   await mobileGarden.getByRole('button', { name: 'Plant it' }).click();
   assert.equal((await mobilePlant).status(), 201);
+  let failGardenReload = true;
+  await mobileGarden.route('**/api/garden/state', async route => {
+    if (failGardenReload) {
+      failGardenReload = false;
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"test initial load failure"}' });
+      return;
+    }
+    await route.continue();
+  });
+  await mobileGarden.reload();
+  await mobileGarden.getByText('The garden is hard to reach. Try again in a moment.', { exact: true }).waitFor();
+  assert.equal(await mobileGarden.locator('#plant-location').isDisabled(), true, 'planting stays disabled until garden state loads');
+  const retriedGardenState = mobileGarden.waitForResponse(response => response.url().endsWith('/api/garden/state'));
+  await mobileGarden.getByRole('button', { name: 'Try again' }).click();
+  assert.equal((await retriedGardenState).status(), 200);
+  await mobileGarden.waitForFunction(() => document.querySelector('#plant-location') instanceof HTMLSelectElement && !document.querySelector('#plant-location').disabled);
+  assert.equal(await mobileGarden.locator('#garden-count').textContent(), '33 plants growing', 'retry restores the existing shared garden state');
   const mobileMap = await open(mobile, '/map');
   await mobileMap.locator('#country-shapes path').first().waitFor();
   await mobileMap.locator('#country-select').selectOption('NZ');

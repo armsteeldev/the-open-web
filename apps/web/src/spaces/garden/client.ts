@@ -36,12 +36,16 @@ const plantSelect = required<HTMLSelectElement>('#plant-type');
 const form = required<HTMLFormElement>('#plant-form');
 const submit = required<HTMLButtonElement>('#plant-submit');
 const feedback = required<HTMLParagraphElement>('#plant-feedback');
+const retry = required<HTMLButtonElement>('#garden-retry');
 const count = required<HTMLParagraphElement>('#garden-count');
 const list = required<HTMLUListElement>('#garden-list');
 const context = context2d(canvas);
 let state: GardenState = { columns: GARDEN_COLUMNS, rows: GARDEN_ROWS, capacity: GARDEN_COLUMNS * GARDEN_ROWS, plants: [] };
 let busy = false;
-let selectedPlot: { x: number; y: number } | null = null;
+let loaded = false;
+locationSelect.disabled = true;
+plantSelect.disabled = true;
+submit.disabled = true;
 
 const plantNames: Record<GardenPlantType, string> = {
   clover: 'clover',
@@ -59,6 +63,19 @@ const stageNames: Record<GardenStage, string> = {
 
 function plotKey(x: number, y: number): string {
   return x + ',' + y;
+}
+
+function stableUnit(seed: number): number {
+  let value = seed | 0;
+  value = Math.imul(value ^ (value >>> 16), 0x7feb352d);
+  value = Math.imul(value ^ (value >>> 15), 0x846ca68b);
+  return ((value ^ (value >>> 16)) >>> 0) / 0x1_0000_0000;
+}
+
+function plantVariation(plant: Plant, channel: number): number {
+  let seed = Math.imul(plant.x + 1, 0x9e3779b1) ^ Math.imul(plant.y + 1, 0x85ebca6b) ^ Math.imul(channel + 1, 0xc2b2ae35);
+  for (const character of plant.plantType) seed = Math.imul(seed ^ character.charCodeAt(0), 0x27d4eb2d);
+  return stableUnit(seed);
 }
 
 function isOpen(x: number, y: number): boolean {
@@ -83,12 +100,12 @@ function drawLeaf(target: CanvasRenderingContext2D, x: number, y: number, rx: nu
   target.restore();
 }
 
-function drawPetals(target: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string, center: string): void {
+function drawPetals(target: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string, center: string, count = 8, rotation = 0): void {
   target.fillStyle = color;
-  for (let index = 0; index < 8; index++) {
-    const angle = index * Math.PI / 4;
+  for (let index = 0; index < count; index++) {
+    const angle = rotation + index * Math.PI * 2 / count;
     target.beginPath();
-    target.ellipse(x + Math.cos(angle) * radius * 0.9, y + Math.sin(angle) * radius * 0.9, radius * 0.42, radius * 0.2, angle, 0, Math.PI * 2);
+    target.ellipse(x + Math.cos(angle) * radius * 0.82, y + Math.sin(angle) * radius * 0.82, radius * 0.43, radius * (0.18 + (index % 2) * 0.035), angle, 0, Math.PI * 2);
     target.fill();
   }
   target.fillStyle = center;
@@ -98,11 +115,13 @@ function drawPetals(target: CanvasRenderingContext2D, x: number, y: number, radi
 }
 
 function drawPlant(target: CanvasRenderingContext2D, plant: Plant): void {
-  const x = 54 + plant.x * 52.5;
-  const baseline = 448 - plant.y * 31;
+  const x = 54 + plant.x * 52.5 + (plantVariation(plant, 0) - 0.5) * 15;
+  const baseline = 448 - plant.y * 31 + (plantVariation(plant, 1) - 0.5) * 7;
   const perspective = 0.62 + (GARDEN_ROWS - 1 - plant.y) * 0.042;
   const stageScale: Record<GardenStage, number> = { seed: 0.2, sprout: 0.38, young: 0.68, mature: 1 };
-  const scale = perspective * stageScale[plant.stage];
+  const scale = perspective * stageScale[plant.stage] * (0.94 + plantVariation(plant, 2) * 0.12);
+  const lean = (plantVariation(plant, 3) - 0.5) * 15;
+  const leafAngle = (plantVariation(plant, 4) - 0.5) * 0.35;
   target.save();
   target.translate(x, baseline);
   target.scale(scale, scale);
@@ -120,59 +139,71 @@ function drawPlant(target: CanvasRenderingContext2D, plant: Plant): void {
     return;
   }
 
-  const top = plant.stage === 'sprout' ? -19 : plant.stage === 'young' ? -39 : -64;
-  target.strokeStyle = '#486f4e';
-  target.lineWidth = 3;
+  const baseTop = plant.stage === 'sprout' ? -19 : plant.stage === 'young' ? -39 : -64;
+  const top = baseTop * (0.94 + plantVariation(plant, 5) * 0.14);
+  target.strokeStyle = plantVariation(plant, 6) > 0.5 ? '#486f4e' : '#517652';
+  target.lineWidth = 2.4 + plantVariation(plant, 7) * 1.2;
   target.lineCap = 'round';
   target.beginPath();
   target.moveTo(0, 0);
-  target.quadraticCurveTo(-2, top * 0.55, 0, top);
+  target.quadraticCurveTo(lean * 0.42, top * 0.52, lean, top);
   target.stroke();
 
   if (plant.stage === 'sprout') {
-    drawLeaf(target, -7, top * 0.58, 8, 4, -0.48, '#6f9868');
-    drawLeaf(target, 7, top * 0.8, 8, 4, 0.48, '#88a879');
+    drawLeaf(target, lean * 0.5 - 7, top * (0.56 + plantVariation(plant, 8) * 0.12), 7 + plantVariation(plant, 9) * 2, 3.5, -0.48 - leafAngle, '#6f9868');
+    drawLeaf(target, lean * 0.72 + 7, top * (0.76 + plantVariation(plant, 10) * 0.12), 7 + plantVariation(plant, 11) * 2, 3.5, 0.48 + leafAngle, '#88a879');
     target.restore();
     return;
   }
 
-  drawLeaf(target, -9, top * 0.48, 11, 5, -0.48, '#6e9568');
-  drawLeaf(target, 10, top * 0.68, 11, 5, 0.46, '#87a776');
+  drawLeaf(target, lean * 0.5 - 9, top * (0.46 + plantVariation(plant, 12) * 0.12), 9 + plantVariation(plant, 13) * 3, 4.5, -0.5 - leafAngle, '#6e9568');
+  drawLeaf(target, lean * 0.72 + 10, top * (0.64 + plantVariation(plant, 14) * 0.12), 9 + plantVariation(plant, 15) * 3, 4.5, 0.44 + leafAngle, '#87a776');
   if (plant.stage === 'young') {
     target.restore();
     return;
   }
 
   if (plant.plantType === 'grass') {
-    target.strokeStyle = '#587d51';
-    target.lineWidth = 3;
-    for (const [side, height] of [[-1, 48], [-0.5, 57], [0.5, 53], [1, 44]] as const) {
+    target.strokeStyle = plantVariation(plant, 16) > 0.5 ? '#587d51' : '#688957';
+    target.lineWidth = 2 + plantVariation(plant, 17) * 1.5;
+    const tuftHeight = 42 + plantVariation(plant, 18) * 18;
+    for (const [index, side] of ([-1, -0.5, 0.15, 0.72, 1] as const).entries()) {
+      const height = tuftHeight * (0.78 + plantVariation(plant, 19 + index) * 0.32);
+      const bend = (plantVariation(plant, 25 + index) - 0.5) * 9;
       target.beginPath();
       target.moveTo(0, 0);
-      target.quadraticCurveTo(side * 7, -height * 0.6, side * 12, -height);
+      target.quadraticCurveTo(side * 7 + bend, -height * 0.6, side * 12 + bend, -height);
       target.stroke();
     }
   } else if (plant.plantType === 'sapling') {
-    target.strokeStyle = '#795d43';
-    target.lineWidth = 5;
+    target.strokeStyle = plantVariation(plant, 31) > 0.5 ? '#795d43' : '#88684b';
+    target.lineWidth = 4 + plantVariation(plant, 32) * 2;
     target.beginPath();
     target.moveTo(0, 0);
-    target.lineTo(0, -48);
+    target.lineTo(lean * 0.7, -48);
     target.stroke();
-    target.fillStyle = '#5f8055';
-    for (const [cx, cy, radius] of [[-7, -47, 16], [8, -49, 18], [0, -64, 16]] as const) {
+    target.fillStyle = plantVariation(plant, 33) > 0.5 ? '#5f8055' : '#69895e';
+    const crown = [
+      [-8 + (plantVariation(plant, 34) - 0.5) * 7, -46, 14 + plantVariation(plant, 35) * 5],
+      [8 + (plantVariation(plant, 36) - 0.5) * 7, -49, 14 + plantVariation(plant, 37) * 6],
+      [lean * 0.65, -63 - plantVariation(plant, 38) * 5, 13 + plantVariation(plant, 39) * 5],
+    ] as const;
+    for (const [cx, cy, radius] of crown) {
       target.beginPath();
       target.arc(cx, cy, radius, 0, Math.PI * 2);
       target.fill();
     }
   } else if (plant.plantType === 'wildflower') {
-    drawPetals(target, 0, top, 12, '#d9a756', '#765a3b');
+    const colors = ['#d9a756', '#d98770', '#d6c06e', '#b7a6c6'];
+    drawPetals(target, lean, top, 10 + plantVariation(plant, 40) * 5, colors[Math.floor(plantVariation(plant, 41) * colors.length)]!, '#765a3b', 7 + Math.floor(plantVariation(plant, 42) * 4), plantVariation(plant, 43) * 0.5);
   } else if (plant.plantType === 'sunflower') {
-    drawPetals(target, 0, top, 17, '#e3bb4d', '#58452f');
+    const golds = ['#e3bb4d', '#e0aa3f', '#edc85d'];
+    drawPetals(target, lean, top, 14 + plantVariation(plant, 44) * 5, golds[Math.floor(plantVariation(plant, 45) * golds.length)]!, '#58452f', 9 + Math.floor(plantVariation(plant, 46) * 4), plantVariation(plant, 47) * 0.45);
   } else {
-    drawLeaf(target, -7, top - 5, 8, 6, -0.4, '#659268');
-    drawLeaf(target, 7, top - 5, 8, 6, 0.4, '#7fa276');
-    drawPetals(target, 0, top - 10, 7, '#e28b83', '#d9b367');
+    drawLeaf(target, lean - 7, top - 5, 7 + plantVariation(plant, 48) * 2, 5, -0.4 - leafAngle, '#659268');
+    drawLeaf(target, lean + 7, top - 5, 7 + plantVariation(plant, 49) * 2, 5, 0.4 + leafAngle, '#7fa276');
+    const pinks = ['#e28b83', '#cf7c76', '#df9b70'];
+    drawPetals(target, lean, top - 10, 6 + plantVariation(plant, 50) * 2, pinks[Math.floor(plantVariation(plant, 51) * pinks.length)]!, '#d9b367', 6 + Math.floor(plantVariation(plant, 52) * 3), plantVariation(plant, 53) * 0.6);
   }
   target.restore();
 }
@@ -202,27 +233,39 @@ function drawScene(): void {
   context.lineTo(0, 560);
   context.closePath();
   context.fill();
-  context.strokeStyle = '#a1ad94';
-  context.lineWidth = 1;
-  for (let row = 0; row < GARDEN_ROWS; row++) {
+  context.strokeStyle = '#91a08755';
+  context.lineWidth = 0.8;
+  for (let row = 1; row < GARDEN_ROWS; row += 2) {
     const baseline = 448 - row * 31;
     context.beginPath();
     context.moveTo(24, baseline + 5);
-    context.quadraticCurveTo(500, baseline + 16, 976, baseline + 4);
+    context.quadraticCurveTo(240, baseline + 15, 492, baseline + 6);
+    context.quadraticCurveTo(748, baseline - 1, 976, baseline + 4);
     context.stroke();
   }
-  for (let column = 0; column < GARDEN_COLUMNS; column++) {
-    const x = 54 + column * 52.5;
-    for (let row = 0; row < GARDEN_ROWS; row++) {
-      const baseline = 448 - row * 31;
-      context.fillStyle = '#89977726';
-      context.beginPath();
-      context.ellipse(x, baseline + 1, 16, 4, 0, 0, Math.PI * 2);
-      context.fill();
-    }
+  for (let index = 0; index < 30; index++) {
+    const x = 24 + stableUnit(index * 23 + 701) * 952;
+    const y = 340 + stableUnit(index * 31 + 907) * 204;
+    const radiusX = 12 + stableUnit(index * 19 + 121) * 28;
+    const radiusY = 2 + stableUnit(index * 17 + 441) * 6;
+    context.fillStyle = index % 3 === 0 ? '#87987818' : '#d0d5bb20';
+    context.beginPath();
+    context.ellipse(x, y, radiusX, radiusY, (stableUnit(index * 37 + 8) - 0.5) * 0.16, 0, Math.PI * 2);
+    context.fill();
+  }
+  for (let index = 0; index < 104; index++) {
+    const x = 18 + stableUnit(index * 47 + 1337) * 964;
+    const y = 336 + stableUnit(index * 53 + 2243) * 210;
+    const length = 2 + stableUnit(index * 29 + 78) * 5;
+    context.strokeStyle = index % 3 === 0 ? '#647c571f' : '#e2e2c51f';
+    context.lineWidth = 0.6 + stableUnit(index * 41 + 619) * 0.6;
+    context.beginPath();
+    context.moveTo(x, y);
+    context.lineTo(x + length, y - 1 - stableUnit(index * 43 + 601) * 2);
+    context.stroke();
   }
 
-  const selected = selectedPlot ?? selectedFromInput();
+  const selected = selectedFromInput();
   if (selected) {
     const x = 54 + selected.x * 52.5;
     const baseline = 448 - selected.y * 31;
@@ -258,11 +301,12 @@ function updateLocations(): void {
     locationSelect.append(option);
     locationSelect.disabled = true;
     submit.disabled = true;
-    selectedPlot = null;
+    plantSelect.disabled = true;
     return;
   }
-  locationSelect.disabled = busy;
-  submit.disabled = busy;
+  locationSelect.disabled = busy || !loaded;
+  submit.disabled = busy || !loaded;
+  plantSelect.disabled = busy || !loaded;
   for (const plot of available) {
     const option = document.createElement('option');
     option.value = plotKey(plot.x, plot.y);
@@ -271,7 +315,6 @@ function updateLocations(): void {
   }
   if (available.some(plot => plotKey(plot.x, plot.y) === previous)) locationSelect.value = previous;
   else locationSelect.value = plotKey(available[0]!.x, available[0]!.y);
-  selectedPlot = selectedFromInput();
 }
 
 function updateList(): void {
@@ -300,19 +343,38 @@ function render(next: GardenState): void {
   drawScene();
 }
 
-async function loadGarden(): Promise<void> {
+async function loadGarden(): Promise<boolean> {
+  if (!loaded) {
+    feedback.textContent = 'Opening the garden…';
+    feedback.dataset.state = '';
+  }
+  retry.disabled = true;
   try {
     const response = await fetch('/api/garden/state', { headers: { Accept: 'application/json' } });
     if (!response.ok) throw new Error('The garden is hard to reach. Try again in a moment.');
-    render(await response.json() as GardenState);
+    const next = await response.json() as GardenState;
+    loaded = true;
+    retry.hidden = true;
+    render(next);
+    return true;
   } catch (error) {
     feedback.textContent = error instanceof Error ? error.message : 'The garden is hard to reach.';
     feedback.dataset.state = 'error';
+    retry.hidden = false;
+    return false;
+  } finally {
+    retry.disabled = false;
   }
 }
 
+retry.addEventListener('click', () => { void loadGarden(); });
 locationSelect.addEventListener('change', drawScene);
 canvas.addEventListener('click', event => {
+  if (!loaded) {
+    feedback.textContent = 'The garden is still opening. Choose a patch when it appears.';
+    feedback.dataset.state = '';
+    return;
+  }
   const rect = canvas.getBoundingClientRect();
   const x = ((event.clientX - rect.left) / rect.width) * 1000;
   const y = ((event.clientY - rect.top) / rect.height) * 560;
@@ -328,7 +390,6 @@ canvas.addEventListener('click', event => {
     return;
   }
   locationSelect.value = plotKey(column, row);
-  selectedPlot = { x: column, y: row };
   feedback.textContent = 'Patch ' + (column + 1) + ', row ' + (row + 1) + ' selected.';
   feedback.dataset.state = '';
   drawScene();
@@ -342,6 +403,11 @@ plantSelect.addEventListener('change', () => {
 form.addEventListener('submit', async event => {
   event.preventDefault();
   if (busy) return;
+  if (!loaded) {
+    feedback.textContent = 'The garden is still opening. Try again in a moment.';
+    feedback.dataset.state = '';
+    return;
+  }
   const plot = selectedFromInput();
   if (!plot || !(GARDEN_PLANT_TYPES as readonly string[]).includes(plantSelect.value)) {
     feedback.textContent = 'Choose an open patch and a plant.';
@@ -370,18 +436,20 @@ form.addEventListener('submit', async event => {
     }
     if (response.status === 409) {
       const result = await response.json() as { error?: string };
-      await loadGarden();
+      const refreshed = await loadGarden();
       throw new Error(result.error === 'garden full'
         ? 'The garden is full. A patch opens when an older plant leaves.'
-        : 'That patch is already occupied. Choose another one.');
+        : refreshed ? 'That patch is already occupied. Choose another one.' : 'That patch is occupied, and the garden could not refresh. Reload before choosing again.');
     }
     if (!response.ok) throw new Error('Your plant did not take. Try again.');
     const plant = await response.json() as { plant: Plant };
     const display = plantNames[plant.plant.plantType];
     const location = 'patch ' + (plant.plant.x + 1) + ', row ' + (plant.plant.y + 1);
-    await loadGarden();
-    feedback.textContent = 'You planted a ' + display + ' in ' + location + '. It will grow with time.';
-    feedback.dataset.state = '';
+    const refreshed = await loadGarden();
+    feedback.textContent = refreshed
+      ? 'You planted a ' + display + ' in ' + location + '. It will grow with time.'
+      : 'Your ' + display + ' was planted in ' + location + ', but the garden could not refresh. Reload to see it.';
+    feedback.dataset.state = refreshed ? '' : 'error';
   } catch (error) {
     feedback.textContent = error instanceof Error ? error.message : 'Your plant did not take. Try again.';
     feedback.dataset.state = 'error';

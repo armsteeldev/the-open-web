@@ -29,6 +29,7 @@ import SpaceLayout from '../layouts/SpaceLayout.astro';
       <button id="plant-submit" type="submit">Plant it</button>
     </form>
     <p id="plant-feedback" class="plant-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
+    <button id="garden-retry" class="garden-retry" type="button" hidden>Try again</button>
 
     <details class="garden-details">
       <summary>What is growing</summary>
@@ -60,6 +61,7 @@ import SpaceLayout from '../layouts/SpaceLayout.astro';
   .plant-form button:disabled,.plant-form select:disabled { opacity:.55; }
   .plant-feedback { min-height:18px; margin:5px 0 0; color:var(--ow-muted); font-size:12px; }
   .plant-feedback[data-state="error"] { color:#8b4936; }
+  .garden-retry { min-height:32px; height:auto; margin:0 0 4px; padding:4px 10px; }
   .garden-details { width:fit-content; max-width:100%; margin:5px 0 0; color:var(--ow-muted); font-size:12px; }
   .garden-details summary { min-height:32px; padding:7px 4px; cursor:pointer; }
   .garden-details summary:focus-visible { outline:2px solid var(--ow-focus); outline-offset:1px; }

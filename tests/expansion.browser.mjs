@@ -171,6 +171,50 @@ try {
   assert.equal(await questions.locator(`.question-link[data-question-id="${questionId}"] .question-link-meta span`).nth(1).textContent(), '1 answer');
   await shot(questions, 'questions-desktop-populated.png');
 
+  const secondQuestionText = 'Which small sound feels like home?';
+  let secondQuestionId = 0;
+  await seed(db => {
+    secondQuestionId = Number(db.prepare('INSERT INTO questions_items(created_at, body) VALUES (?, ?)').run(Date.now(), secondQuestionText).lastInsertRowid);
+  });
+  await questions.reload();
+  await questions.addStyleTag({ content: 'astro-dev-toolbar{display:none!important}' });
+  await questions.getByRole('heading', { name: 'What tiny thing made today better?' }).waitFor();
+  await questions.locator(`.question-link[data-question-id="${secondQuestionId}"]`).click();
+  await questions.getByRole('heading', { name: secondQuestionText }).waitFor();
+  assert.equal(await questions.evaluate(() => document.activeElement?.id), 'question-text', 'question navigation moves focus to the detail heading');
+  await questions.locator('#answer-input').fill('The kettle beginning to sing.');
+  await questions.locator(`.question-link[data-question-id="${questionId}"]`).click();
+  await questions.getByRole('heading', { name: 'What tiny thing made today better?' }).waitFor();
+  await questions.locator(`.question-link[data-question-id="${secondQuestionId}"]`).click();
+  assert.equal(await questions.locator('#answer-input').inputValue(), 'The kettle beginning to sing.', 'an unsaved answer survives question changes');
+
+  await questions.route(`**/api/questions/${questionId}`, async route => {
+    await new Promise(resolve => setTimeout(resolve, 180));
+    await route.continue();
+  });
+  const delayedQuestionRequest = questions.waitForRequest(request => request.url().endsWith(`/api/questions/${questionId}`));
+  const delayedQuestionResponse = questions.waitForResponse(response => response.url().endsWith(`/api/questions/${questionId}`));
+  await questions.locator(`.question-link[data-question-id="${questionId}"]`).click();
+  await delayedQuestionRequest;
+  await questions.locator(`.question-link[data-question-id="${secondQuestionId}"]`).click();
+  await questions.getByRole('heading', { name: secondQuestionText }).waitFor();
+  await delayedQuestionResponse;
+  assert.equal(await questions.locator('#question-text').textContent(), secondQuestionText, 'a slower old response cannot replace the current question');
+  assert.equal(new URL(questions.url()).searchParams.get('id'), String(secondQuestionId), 'a stale response cannot move the address bar backwards');
+  await questions.unroute(`**/api/questions/${questionId}`);
+
+  await questions.locator(`.question-link[data-question-id="${questionId}"]`).click();
+  await questions.getByRole('heading', { name: 'What tiny thing made today better?' }).waitFor();
+  await questions.locator(`.question-link[data-question-id="${secondQuestionId}"]`).click();
+  await questions.getByRole('heading', { name: secondQuestionText }).waitFor();
+  await questions.goBack();
+  await questions.getByRole('heading', { name: 'What tiny thing made today better?' }).waitFor();
+  assert.equal(await questions.evaluate(() => document.activeElement?.id), 'question-text', 'Back restores detail focus');
+  await questions.goForward();
+  await questions.getByRole('heading', { name: secondQuestionText }).waitFor();
+  await questions.getByRole('button', { name: 'All questions' }).click();
+  assert.equal(await questions.evaluate(() => document.activeElement?.id), 'questions-title', 'returning to the index restores focus to its visible heading');
+
   const mobileQuestions = await open(mobileContext, `/questions?id=${questionId}`);
   await mobileQuestions.getByRole('heading', { name: 'What tiny thing made today better?' }).waitFor();
   await mobileQuestions.locator('#answer-input').fill('A stranger held the door.');
@@ -179,6 +223,9 @@ try {
   await mobileQuestions.getByRole('button', { name: 'Add your answer' }).click();
   assert.equal((await mobileAnswer).status(), 200);
   await mobileQuestions.locator('#answer-list').getByText('A stranger held the door.', { exact: true }).waitFor();
+  await mobileQuestions.getByRole('button', { name: 'All questions' }).click();
+  assert.equal(await mobileQuestions.evaluate(() => document.activeElement?.id), 'questions-title', 'mobile return focus lands outside the hidden question list');
+  assert.equal(await mobileQuestions.locator('.questions-index').isVisible(), true, 'the mobile question list is visible again after return');
   await shot(mobileQuestions, 'questions-mobile-populated.png');
   seed(db => {
     const insert = db.prepare('INSERT INTO questions_items(created_at, body) VALUES (?, ?)');

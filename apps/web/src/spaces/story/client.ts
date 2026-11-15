@@ -1,3 +1,5 @@
+export {};
+
 interface Contribution {
   readonly id: number;
   readonly ordinal: number;
