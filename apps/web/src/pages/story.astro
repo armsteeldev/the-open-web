@@ -51,7 +51,11 @@ import SpaceLayout from '../layouts/SpaceLayout.astro';
   .story-fragment { margin: 0; padding: 17px 2px 8px; color: #30302f; font-family: Georgia, 'Times New Roman', serif; font-size: 19px; line-height: 1.72; white-space: pre-wrap; overflow-wrap: anywhere; }
   .story-fragment + .story-fragment { padding-top: 10px; }
   .story-fragment[data-removed="true"] { color: var(--ow-muted); font-style: italic; }
-  .story-fragment time { display: block; margin-top: 8px; color: var(--ow-muted); font: 11px system-ui, sans-serif; }
+  .story-meta { width: fit-content; margin: 4px 0 0; color: var(--ow-muted); font: 11px system-ui, sans-serif; }
+  .story-meta summary { min-width: 24px; min-height: 24px; padding: 2px 7px; color: var(--ow-muted); cursor: pointer; list-style: none; }
+  .story-meta summary::-webkit-details-marker { display: none; }
+  .story-meta summary:focus-visible { outline: 2px solid var(--ow-focus); outline-offset: 1px; }
+  .story-meta time { display: block; padding: 0 7px 5px; color: var(--ow-muted); font: 11px system-ui, sans-serif; }
   .story-empty { margin: 0; padding: 20px 2px; color: var(--ow-muted); border-top: 1px solid #b5b5b5; }
   .story-writing { width: min(100%, 660px); margin: 32px auto 0; padding-top: 18px; border-top: 1px solid #b5b5b5; }
   .story-writing label { display: block; margin-bottom: 8px; color: #555; font-size: 12px; }

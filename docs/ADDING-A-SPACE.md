@@ -1,6 +1,6 @@
 # Adding a space
 
-This is the implementation path for adding one finished space to the existing platform. It uses the real Astro, Fastify, SQLite, identity, realtime, rate-limit, test, and release infrastructure. Do not add an inactive entry or placeholder page just to reserve a name.
+The planned collection is complete at ten active spaces. This guide records the integration boundaries used by the platform; it is not an invitation to continue expanding the collection. Any future scope change requires a separate explicit decision. The existing architecture uses Astro, Fastify, SQLite, shared identity, realtime, rate limits, tests, and guarded releases. Do not add an inactive entry or placeholder page just to reserve a name.
 
 ## 1. Register its public identity
 

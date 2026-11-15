@@ -1,0 +1,78 @@
+---
+import SpaceLayout from '../layouts/SpaceLayout.astro';
+---
+<SpaceLayout title="The Garden — The Open Web" layout="document">
+  <main class="garden" aria-labelledby="garden-title">
+    <header class="garden-heading">
+      <h1 id="garden-title">The Garden</h1>
+      <p id="garden-count" role="status" aria-live="polite">A shared patch of ground</p>
+    </header>
+
+    <figure class="garden-view">
+      <canvas id="garden-scene" width="1000" height="560" role="img"
+        aria-label="A small shared garden"
+        aria-describedby="garden-help"></canvas>
+      <figcaption id="garden-help">Choose a plant and an open patch below. You can also tap an open patch in the garden.</figcaption>
+    </figure>
+
+    <form id="plant-form" class="plant-form">
+      <label for="plant-type">Plant</label>
+      <select id="plant-type" name="plantType">
+        <option value="clover">Clover</option>
+        <option value="wildflower">Wildflower</option>
+        <option value="sunflower">Sunflower</option>
+        <option value="grass">Grass</option>
+        <option value="sapling">Sapling</option>
+      </select>
+      <label for="plant-location">Open patch</label>
+      <select id="plant-location" name="location" required></select>
+      <button id="plant-submit" type="submit">Plant it</button>
+    </form>
+    <p id="plant-feedback" class="plant-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
+
+    <details class="garden-details">
+      <summary>What is growing</summary>
+      <ul id="garden-list"></ul>
+    </details>
+    <details class="garden-details">
+      <summary>About this garden</summary>
+      <p>Plants grow with time and leave after about ninety days, making room for something new.</p>
+    </details>
+  </main>
+  <script>import '../spaces/garden/client';</script>
+</SpaceLayout>
+
+<style is:global>
+  .garden { width:min(100%,1120px); min-height:100vh; min-height:100svh; margin:0 auto; padding:max(54px,calc(env(safe-area-inset-top) + 44px)) max(16px,env(safe-area-inset-right)) max(32px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left)); }
+  .garden *, .garden *::before, .garden *::after { box-sizing:border-box; }
+  .garden [hidden] { display:none !important; }
+  .garden-heading { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin:0 0 12px; padding-left:36px; }
+  .garden-heading h1 { margin:0; font-size:17px; font-weight:600; }
+  .garden-heading p { margin:0; color:var(--ow-muted); font-size:12px; }
+  .garden-view { margin:0; overflow:hidden; border:1px solid #9ea796; background:#dce4d4; }
+  #garden-scene { display:block; width:100%; height:auto; aspect-ratio:25 / 14; touch-action:manipulation; cursor:crosshair; }
+  #garden-scene:focus-visible { outline:3px solid var(--ow-focus); outline-offset:-3px; }
+  .garden-view figcaption { padding:5px 9px; border-top:1px solid #b7bdb1; background:#e9ece4; color:var(--ow-muted); font-size:11px; }
+  .plant-form { display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin:12px 0 0; }
+  .plant-form label { color:var(--ow-muted); font-size:12px; }
+  .plant-form select { min-height:38px; max-width:min(44vw,210px); padding:4px 28px 4px 8px; border:1px solid var(--ow-border); border-radius:2px; background:var(--ow-surface); color:var(--ow-text); font:inherit; }
+  .plant-form button { min-height:38px; height:auto; padding:5px 13px; }
+  .plant-form button:disabled,.plant-form select:disabled { opacity:.55; }
+  .plant-feedback { min-height:18px; margin:5px 0 0; color:var(--ow-muted); font-size:12px; }
+  .plant-feedback[data-state="error"] { color:#8b4936; }
+  .garden-details { width:fit-content; max-width:100%; margin:5px 0 0; color:var(--ow-muted); font-size:12px; }
+  .garden-details summary { min-height:32px; padding:7px 4px; cursor:pointer; }
+  .garden-details summary:focus-visible { outline:2px solid var(--ow-focus); outline-offset:1px; }
+  .garden-details p { max-width:540px; margin:2px 4px 8px; line-height:1.5; }
+  #garden-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:3px 22px; margin:0 0 9px; padding-left:22px; }
+  #garden-list li { padding:2px 0; }
+  @media(max-width:620px) {
+    .garden { padding-left:max(10px,env(safe-area-inset-left)); padding-right:max(10px,env(safe-area-inset-right)); }
+    .garden-heading { align-items:flex-start; flex-direction:column; gap:3px; margin-bottom:9px; }
+    .plant-form { display:grid; grid-template-columns:68px minmax(0,1fr); align-items:center; gap:7px; }
+    .plant-form select { width:100%; max-width:none; min-height:42px; }
+    .plant-form button { grid-column:1 / -1; width:100%; min-height:42px; }
+    #garden-list { grid-template-columns:1fr; }
+  }
+  @media(prefers-reduced-motion:reduce) { .garden *, .garden *::before, .garden *::after { scroll-behavior:auto !important; transition:none !important; animation:none !important; } }
+</style>

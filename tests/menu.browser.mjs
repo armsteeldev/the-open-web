@@ -21,6 +21,9 @@ const spaces = [
   { text: 'The Story', path: '/story' },
   { text: 'Open Questions', path: '/questions' },
   { text: 'The Choice', path: '/choice' },
+  { text: 'The Drawing Board', path: '/draw' },
+  { text: 'The Garden', path: '/garden' },
+  { text: 'Visitors Map', path: '/map' },
 ];
 
 const browserName = process.env.OPEN_WEB_BROWSER ?? 'chromium';
@@ -102,13 +105,14 @@ try {
     assert.equal(await panel.isVisible(), true);
     if (viewport.name === 'desktop' || viewport.name === 'narrow mobile') await screenshot(page, `wall-open-${viewport.width}.png`);
 
-    if (viewport.touch) await canvas.tap({ position: { x: viewport.width / 2, y: viewport.height / 2 } });
-    else await page.mouse.click(viewport.width / 2, viewport.height / 2);
+    const canvasPoint = { x: viewport.width - 30, y: viewport.height / 2 };
+    if (viewport.touch) await canvas.tap({ position: canvasPoint });
+    else await page.mouse.click(canvasPoint.x, canvasPoint.y);
     assert.equal(await menu.evaluate(element => element.open), false);
     assert.equal(placements, 0, 'dismissing the menu on the canvas does not place a pixel');
     const placement = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/api/wall/pixel'));
-    if (viewport.touch) await canvas.tap({ position: { x: viewport.width / 2, y: viewport.height / 2 } });
-    else await page.mouse.click(viewport.width / 2, viewport.height / 2);
+    if (viewport.touch) await canvas.tap({ position: canvasPoint });
+    else await page.mouse.click(canvasPoint.x, canvasPoint.y);
     assert.equal((await placement).status(), 200, 'canvas remains interactive after the menu closes');
     assert.equal(placements, 1);
     if (viewport.touch) await trigger.tap();

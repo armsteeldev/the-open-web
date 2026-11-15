@@ -49,7 +49,7 @@ Expansion Phase I adds four independent public spaces to the shared Astro, Fasti
 
 All submitted text is normalized and rendered as text; markup, scripts, and external embeds are not supported. Request keys are UUIDs and payloads stay within the shared 1 KiB request bound. Same-origin checks, the shared write gate, process request limits, and bounded per-space network budgets apply. The new spaces do not use WebSockets.
 
-Migration 005 creates only the four `guestbook_*`, `story_*`, `questions_*`, and `choice_*` table groups. It does not rewrite existing Wall, Chat, or Bottle tables or rows. Releases must use the [Expansion compatibility bridge sequence](ROLLBACK-COMPATIBILITY.md): the bridge serves the established three spaces, does not apply migration 005, and accepts only the exact validated 005 schema if the feature release needs code rollback.
+Migration 005 creates only the four `guestbook_*`, `story_*`, `questions_*`, and `choice_*` table groups. It does not rewrite existing Wall, Chat, or Bottle tables or rows. The original Phase I bridge procedure has been superseded by the [final expansion compatibility sequence](ROLLBACK-COMPATIBILITY.md), which keeps the established three spaces active while recognizing exact migrations 004, 005, and 006 for rollback.
 
 ## Visual review
 

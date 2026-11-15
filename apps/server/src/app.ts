@@ -10,6 +10,9 @@ import { guestbookSpace } from './spaces/guestbook/index.js';
 import { storySpace } from './spaces/story/index.js';
 import { questionsSpace } from './spaces/questions/index.js';
 import { choiceSpace } from './spaces/choice/index.js';
+import { drawSpace } from './spaces/draw/index.js';
+import { gardenSpace } from './spaces/garden/index.js';
+import { mapSpace } from './spaces/map/index.js';
 import type { SpaceContext, SpaceModule } from './spaces/types.js';
 import type { AppOptions } from './config.js';
 import { PLACEMENT_COOLDOWN_MS } from './config.js';
@@ -19,7 +22,7 @@ import { RateLimitService } from './services/rate-limits.js';
 import { writesBlocked } from './services/write-gate.js';
 import { SpaceChannels } from './realtime/channels.js';
 
-const defaultModules: readonly SpaceModule[] = [wallSpace, chatSpace, bottleSpace, guestbookSpace, storySpace, questionsSpace, choiceSpace];
+const defaultModules: readonly SpaceModule[] = [wallSpace, chatSpace, bottleSpace, guestbookSpace, storySpace, questionsSpace, choiceSpace, drawSpace, gardenSpace, mapSpace];
 const COMPATIBILITY_ROUTE_OWNER = new Map([['GET /api/session', 'wall']]);
 
 export interface SpaceRegistrationOptions {

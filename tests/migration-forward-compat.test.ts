@@ -35,7 +35,7 @@ const bridgeRegistration = (databaseMigrations: URL) => ({
   databaseMigrations,
 });
 
-test('the expansion bridge, candidate migration, and bridge rollback preserve all seven-space data safely', async () => {
+test('the three-space bridge, ten-space candidate migration, and bridge rollback preserve data safely', async () => {
   const root = mkdtempSync(join(tmpdir(), 'open-web-expansion-forward-'));
   const path = join(root, 'release-sequence.sqlite');
   const bridgeMigrations = migrationsThrough004(join(root, 'bridge-migrations'));
@@ -59,6 +59,7 @@ test('the expansion bridge, candidate migration, and bridge rollback preserve al
     assert.equal((await bridge.inject('/api/chat/history')).json().messages[0].text, 'chat data survives both switches');
     assert.equal((await bridge.inject('/api/bottle/random')).json().bottle.message, 'Bottle data survives both switches');
     assert.equal((await bridge.inject('/api/guestbook/entries')).statusCode, 404, 'the bridge does not register unfinished spaces');
+    assert.equal((await bridge.inject('/api/draw/drawings')).statusCode, 404, 'the bridge does not expose Drawing Board');
     const database = openDb(path, bridgeMigrations);
     assert.equal(database.prepare('SELECT MAX(version) AS version FROM migrations').get()!.version, 4);
     database.close();
@@ -70,10 +71,13 @@ test('the expansion bridge, candidate migration, and bridge rollback preserve al
   let cookie = '';
   let questionId: number;
   let decisionId: number;
+  let drawingId: number;
+  let plantPosition: { x: number; y: number };
   try {
     assert.equal((await candidate.inject('/api/health')).statusCode, 200);
     const session = await candidate.inject('/api/session');
     cookie = String(session.headers['set-cookie']).split(';', 1)[0]!;
+    assert.deepEqual(spaces.map(space => space.id), ['wall', 'chat', 'bottle', 'guestbook', 'story', 'questions', 'choice', 'draw', 'garden', 'map']);
     const write = (url: string, payload: unknown) => candidate.inject({
       method: 'POST', url, headers: { origin, cookie, 'content-type': 'application/json' }, payload: JSON.stringify(payload),
     });
@@ -105,8 +109,32 @@ test('the expansion bridge, candidate migration, and bridge rollback preserve al
     });
     assert.equal(vote.statusCode, 200, vote.body);
     assert.deepEqual(vote.json().decision.results, { optionA: 1, optionB: 0, total: 1 });
+
+    assert.deepEqual((await candidate.inject('/api/draw/drawings')).json().drawings, []);
+    const strokes = Array.from({ length: 8 }, (_, strokeIndex) => ({
+      tool: 'pen', color: strokeIndex % 6, size: strokeIndex % 3,
+      points: Array.from({ length: 70 }, (_, pointIndex) => [pointIndex * 13, (pointIndex * 7 + strokeIndex) % 700]),
+    }));
+    const drawing = await write('/api/draw/drawings', { strokes });
+    assert.equal(drawing.statusCode, 201, drawing.body);
+    drawingId = drawing.json().drawing.id as number;
+    assert.ok(Buffer.byteLength(drawing.body) > 1_024, 'the drawing submission exercises the bounded route exception');
+    assert.equal((await candidate.inject(`/api/draw/drawings/${drawingId}`)).json().drawing.strokes.length, 8);
+
+    const garden = await candidate.inject('/api/garden/state');
+    assert.deepEqual(garden.json().plants, []);
+    const planted = await write('/api/garden/plants', { x: 0, y: 0, plantType: 'wildflower' });
+    assert.equal(planted.statusCode, 201, planted.body);
+    plantPosition = planted.json().plant;
+
+    const map = await write('/api/map/contribution', { countryCode: 'SE' });
+    assert.equal(map.statusCode, 200, map.body);
+    const mapState = await candidate.inject({ url: '/api/map/state', headers: { cookie } });
+    assert.deepEqual(mapState.json().countries, [{ code: 'SE', count: 1 }]);
+    assert.equal(mapState.json().yourCountry, 'SE');
     for (const route of [
       '/api/guestbook/entries', '/api/story/state', '/api/questions', `/api/questions/${questionId}`, '/api/choice/state', '/api/choice/archive',
+      '/api/draw/drawings', `/api/draw/drawings/${drawingId}`, '/api/garden/state', '/api/map/state',
     ]) assert.equal((await candidate.inject(route)).statusCode, 200, route);
   } finally {
     await candidate.close();
@@ -115,7 +143,7 @@ test('the expansion bridge, candidate migration, and bridge rollback preserve al
   const migrated = openDb(path);
   assert.deepEqual(
     (migrated.prepare('SELECT version FROM migrations ORDER BY version').all() as { version: number }[]).map(row => row.version),
-    [1, 2, 3, 4, 5],
+    [1, 2, 3, 4, 5, 6],
   );
   assert.equal(migrated.prepare('PRAGMA integrity_check').get()!.integrity_check, 'ok');
   assert.deepEqual(migrated.prepare('PRAGMA foreign_key_check').all(), []);
@@ -123,18 +151,25 @@ test('the expansion bridge, candidate migration, and bridge rollback preserve al
   assert.equal((migrated.prepare('SELECT COUNT(*) AS count FROM story_contributions').get() as { count: number }).count, 1);
   assert.equal((migrated.prepare('SELECT COUNT(*) AS count FROM questions_answers WHERE question_id=?').get(questionId) as { count: number }).count, 1);
   assert.equal((migrated.prepare('SELECT choice FROM choice_votes WHERE decision_id=?').get(decisionId) as { choice: string }).choice, 'a');
+  assert.equal((migrated.prepare('SELECT COUNT(*) AS count FROM draw_drawings WHERE id=?').get(drawingId) as { count: number }).count, 1);
+  assert.equal((migrated.prepare('SELECT COUNT(*) AS count FROM garden_plants WHERE x=? AND y=?').get(plantPosition.x, plantPosition.y) as { count: number }).count, 1);
+  assert.equal((migrated.prepare('SELECT country_code FROM map_contributions').get() as { country_code: string }).country_code, 'SE');
   migrated.close();
 
   bridge = await createApp(options(path), bridgeRegistration(bridgeMigrations));
   try {
-    assert.equal((await bridge.inject('/api/health')).statusCode, 200, 'bridge startup accepts the exact known 005 schema');
+    assert.equal((await bridge.inject('/api/health')).statusCode, 200, 'bridge startup accepts the exact known 006 schema');
     assert.equal((await bridge.inject('/api/wall/tile/0/0')).rawPayload[302], 4);
     assert.equal((await bridge.inject('/api/chat/history')).json().messages[0].text, 'chat data survives both switches');
     assert.equal((await bridge.inject('/api/bottle/random')).json().bottle.message, 'Bottle data survives both switches');
     assert.equal((await bridge.inject('/api/guestbook/entries')).statusCode, 404, 'bridge rollback keeps new spaces inactive');
+    assert.equal((await bridge.inject('/api/draw/drawings')).statusCode, 404, 'bridge rollback does not expose Drawing Board');
     const retained = openDb(path, bridgeMigrations);
-    assert.equal(retained.prepare('SELECT MAX(version) AS version FROM migrations').get()!.version, 5);
+    assert.equal(retained.prepare('SELECT MAX(version) AS version FROM migrations').get()!.version, 6);
     assert.equal((retained.prepare('SELECT body FROM guestbook_entries').get() as { body: string }).body, 'Guestbook data survives rollback');
+    assert.equal((retained.prepare('SELECT COUNT(*) AS count FROM draw_drawings WHERE id=?').get(drawingId) as { count: number }).count, 1);
+    assert.equal((retained.prepare('SELECT COUNT(*) AS count FROM garden_plants WHERE x=? AND y=?').get(plantPosition.x, plantPosition.y) as { count: number }).count, 1);
+    assert.equal((retained.prepare('SELECT country_code FROM map_contributions').get() as { country_code: string }).country_code, 'SE');
     assert.equal(retained.prepare('PRAGMA integrity_check').get()!.integrity_check, 'ok');
     assert.deepEqual(retained.prepare('PRAGMA foreign_key_check').all(), []);
     retained.close();
@@ -144,13 +179,13 @@ test('the expansion bridge, candidate migration, and bridge rollback preserve al
   }
 });
 
-test('bridge rejects unexpected versions and altered migration 005 schemas', () => {
+test('bridge rejects unexpected versions and altered migrations 005 and 006 schemas', () => {
   const root = mkdtempSync(join(tmpdir(), 'open-web-expansion-invalid-'));
   const migrations = migrationsThrough004(join(root, 'bridge-migrations'));
   try {
     const unexpectedPath = join(root, 'unexpected.sqlite');
     const unexpected = openDb(unexpectedPath);
-    unexpected.prepare('INSERT INTO migrations(version) VALUES (6)').run();
+    unexpected.prepare('INSERT INTO migrations(version) VALUES (7)').run();
     unexpected.close();
     assert.throws(() => openDb(unexpectedPath, migrations), /not supported/);
 
@@ -159,6 +194,12 @@ test('bridge rejects unexpected versions and altered migration 005 schemas', () 
     altered.exec('DROP INDEX guestbook_entries_created_id');
     altered.close();
     assert.throws(() => openDb(alteredPath, migrations), /does not match its known compatibility schema/);
+
+    const alteredFinalPath = join(root, 'altered-final.sqlite');
+    const alteredFinal = openDb(alteredFinalPath);
+    alteredFinal.exec('DROP INDEX draw_drawings_created_id');
+    alteredFinal.close();
+    assert.throws(() => openDb(alteredFinalPath, migrations), /does not match its known compatibility schema/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

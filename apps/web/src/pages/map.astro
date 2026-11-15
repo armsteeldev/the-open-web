@@ -1,0 +1,84 @@
+---
+import SpaceLayout from '../layouts/SpaceLayout.astro';
+---
+<SpaceLayout title="Visitors Map — The Open Web" layout="document">
+  <main class="visitors-map" aria-labelledby="map-title">
+    <header class="map-heading">
+      <h1 id="map-title">Visitors Map</h1>
+      <p>Countries people have chosen for themselves.</p>
+    </header>
+
+    <figure class="world-figure">
+      <svg id="world-map" viewBox="0 0 1000 500" role="img" aria-label="World map. Choose a country from the list below to inspect it.">
+        <rect class="map-ocean" x="0" y="0" width="1000" height="500"></rect>
+        <g id="country-shapes" aria-hidden="true"></g>
+      </svg>
+      <figcaption id="map-caption">Shaded countries have a mark. Choose one on the map or from the country list.</figcaption>
+    </figure>
+
+    <section class="map-controls" aria-label="Choose your country">
+      <div class="country-picker">
+        <label for="country-select">Country</label>
+        <select id="country-select">
+          <option value="">Choose a country…</option>
+        </select>
+      </div>
+      <p id="country-count" class="country-count" aria-live="polite">Choose a country to see its marks.</p>
+      <div class="map-actions">
+        <button id="add-country" type="button" disabled>Add my country</button>
+        <button id="remove-country" type="button" hidden>Remove my mark</button>
+      </div>
+    </section>
+    <p id="map-feedback" class="map-feedback" role="status" aria-live="polite" aria-atomic="true"></p>
+
+    <details class="map-about">
+      <summary>About this map</summary>
+      <p>A mark is a country someone chose to share. We do not detect or verify where anyone is.</p>
+      <p>Your choice is tied to this browser's anonymous cookie. If that cookie is cleared, an old mark may no longer be changeable.</p>
+    </details>
+  </main>
+  <script>import '../spaces/map/client';</script>
+</SpaceLayout>
+
+<style is:global>
+  .visitors-map { width:min(100%,1180px); min-height:100vh; min-height:100svh; margin:0 auto; padding:max(54px,calc(env(safe-area-inset-top) + 44px)) max(16px,env(safe-area-inset-right)) max(30px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left)); }
+  .visitors-map *, .visitors-map *::before, .visitors-map *::after { box-sizing:border-box; }
+  .visitors-map [hidden] { display:none !important; }
+  .map-heading { display:flex; align-items:baseline; gap:12px; margin:0 0 12px; padding-left:36px; }
+  .map-heading h1 { margin:0; font-size:17px; font-weight:600; }
+  .map-heading p { margin:0; color:var(--ow-muted); font-size:12px; }
+  .world-figure { margin:0; border:1px solid #a7aaa0; background:#e9ece5; }
+  #world-map { display:block; width:100%; height:auto; aspect-ratio:2 / 1; background:#e9ece5; }
+  #world-map .map-ocean { fill:#e4e8df; }
+  .map-country { fill:#f4f3ec; stroke:#92988d; stroke-width:.7; stroke-linejoin:round; fill-rule:evenodd; cursor:pointer; vector-effect:non-scaling-stroke; }
+  .map-country:hover { fill:#d9ded2; }
+  .map-country.has-marks.level-1 { fill:#c7d0bd; }
+  .map-country.has-marks.level-2 { fill:#b3c0a6; }
+  .map-country.has-marks.level-3 { fill:#98aa8e; }
+  .map-country.selected { stroke:#485b43; stroke-width:2; }
+  .world-figure figcaption { padding:6px 9px; border-top:1px solid #c0c2ba; color:var(--ow-muted); background:#f0f1ed; font-size:11px; line-height:1.4; }
+  .map-controls { display:flex; flex-wrap:wrap; align-items:center; gap:11px; margin:12px 0 0; }
+  .country-picker { display:flex; align-items:center; gap:7px; }
+  .country-picker label { color:var(--ow-muted); font-size:12px; }
+  .country-picker select { width:min(40vw,260px); min-height:40px; padding:5px 28px 5px 8px; border:1px solid var(--ow-border); border-radius:2px; color:var(--ow-text); background:var(--ow-surface); font:inherit; }
+  .country-count { flex:1 1 180px; min-width:0; margin:0; color:var(--ow-muted); font-size:12px; }
+  .map-actions { display:flex; gap:6px; }
+  .map-actions button { min-height:40px; height:auto; padding:5px 12px; }
+  .map-actions button:disabled { opacity:.5; }
+  .map-feedback { min-height:18px; margin:5px 0 0; color:var(--ow-muted); font-size:12px; }
+  .map-feedback[data-state="error"] { color:#8b4936; }
+  .map-about { width:fit-content; max-width:100%; margin-top:7px; color:var(--ow-muted); font-size:12px; }
+  .map-about summary { min-height:32px; padding:7px 4px; cursor:pointer; }
+  .map-about summary:focus-visible { outline:2px solid var(--ow-focus); outline-offset:1px; }
+  .map-about p { max-width:570px; margin:2px 4px 8px; line-height:1.5; }
+  @media(max-width:620px) {
+    .visitors-map { padding-left:max(10px,env(safe-area-inset-left)); padding-right:max(10px,env(safe-area-inset-right)); }
+    .map-heading { flex-direction:column; align-items:flex-start; gap:3px; margin-bottom:9px; }
+    .map-controls { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
+    .country-picker { display:grid; grid-template-columns:68px minmax(0,1fr); }
+    .country-picker select { width:100%; min-height:44px; }
+    .country-count { min-height:18px; }
+    .map-actions { display:grid; grid-template-columns:1fr 1fr; }
+    .map-actions button { min-height:44px; }
+  }
+</style>

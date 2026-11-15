@@ -9,7 +9,7 @@ try {
  for(const viewport of [{width:1280,height:800},{width:390,height:844}]) {
   const context=await browser.newContext({viewport,hasTouch:viewport.width<500});
   const page=await context.newPage();
-  for(const path of ['/wall','/chat','/bottle','/guestbook','/story','/questions','/choice']) {
+  for(const path of ['/wall','/chat','/bottle','/guestbook','/story','/questions','/choice','/draw','/garden','/map']) {
    await page.goto(base+path);
    await page.addStyleTag({content:'astro-dev-toolbar{display:none!important}'});
    if(path==='/chat') await page.getByText('Connected',{exact:true}).waitFor();
@@ -18,6 +18,9 @@ try {
     if(path==='/story') await page.getByRole('heading',{name:'The Story'}).waitFor();
     if(path==='/questions') await page.getByRole('heading',{name:'Open Questions'}).waitFor();
     if(path==='/choice') await page.getByRole('heading',{name:'The Choice'}).waitFor();
+    if(path==='/draw') await page.getByRole('heading',{name:'The Drawing Board'}).waitFor();
+    if(path==='/garden') await page.getByRole('heading',{name:'The Garden'}).waitFor();
+    if(path==='/map') await page.locator('#country-shapes path').first().waitFor();
    const initial=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
    assert.deepEqual(initial.violations.map(v=>({id:v.id,impact:v.impact,help:v.help,nodes:v.nodes.map(n=>n.target)})),[]);
    if(path==='/chat') {
@@ -42,7 +45,7 @@ try {
      assert.deepEqual(populated.violations.map(v=>({id:v.id,impact:v.impact,help:v.help,nodes:v.nodes.map(n=>n.target)})),[]);
     }
     await page.getByLabel('Spaces',{exact:true}).first().click();
-    assert.equal(await page.locator('.global-menu nav a').count(),7);
+    assert.equal(await page.locator('.global-menu nav a').count(),10);
    const menu=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
    assert.deepEqual(menu.violations.map(v=>({id:v.id,impact:v.impact,help:v.help,nodes:v.nodes.map(n=>n.target)})),[]);
   }

@@ -14,13 +14,14 @@ test('ordered migrations upgrade existing data and fail closed on newer schemas'
  try {
   let db=openDb(path,url);place(db,'visitor',1,2,3,1000,5000);db.close();
   db=openDb(path,new URL('../database/migrations/',import.meta.url));
-  assert.deepEqual(db.prepare('SELECT version FROM migrations ORDER BY version').all().map(r=>r.version),[1,2,3,4,5]);
+  assert.deepEqual(db.prepare('SELECT version FROM migrations ORDER BY version').all().map(r=>r.version),[1,2,3,4,5,6]);
   assert.equal((db.prepare('SELECT pixels FROM wall_tiles').get()!.pixels as Uint8Array)[201],3);db.close();
   const advanced=join(root,'advanced');mkdirSync(advanced);
   for(const name of ['001_initial.sql','002_cooldown_retention.sql','003_chat_messages.sql'])writeFileSync(join(advanced,name),readFileSync(new URL(`../database/migrations/${name}`,import.meta.url)));
   writeFileSync(join(advanced,'004_bottle_messages.sql'),readFileSync(new URL('./fixtures/004_bottle_messages.sql',import.meta.url)));
-  for(let version=5;version<=10;version++)writeFileSync(join(advanced,`${String(version).padStart(3,'0')}_extra.sql`),'SELECT 1;');
-  db=openDb(path,pathToFileURL(advanced+'/'));assert.equal(db.prepare('SELECT MAX(version) version FROM migrations').get()!.version,10);db.close();
+  for(const name of ['005_expansion_phase_one.sql','006_final_spaces.sql'])writeFileSync(join(advanced,name),readFileSync(new URL(`../database/migrations/${name}`,import.meta.url)));
+  writeFileSync(join(advanced,'007_extra.sql'),'SELECT 1;');
+  db=openDb(path,pathToFileURL(advanced+'/'));assert.equal(db.prepare('SELECT MAX(version) version FROM migrations').get()!.version,7);db.close();
   assert.throws(()=>openDb(path,new URL('../database/migrations/',import.meta.url)),/not supported/);
  } finally {rmSync(root,{recursive:true,force:true});}
 });

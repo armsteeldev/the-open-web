@@ -1,11 +1,26 @@
 # The Open Web
 
-A small, independent collection of shared spaces: The Wall, a 2,000 × 2,000 collaborative pixel canvas; Global Chat, one public realtime text room; and Message in a Bottle, a quiet pool of anonymous notes found at random. No accounts, analytics, advertising, ranking or tracking scripts.
+A small collection of ten independent internet spaces:
+
+1. [The Wall](/wall) — a shared pixel canvas.
+2. [Global Chat](/chat) — one public text room.
+3. [Message in a Bottle](/bottle) — short notes found at random.
+4. [Guestbook](/guestbook) — a visitor ledger.
+5. [The Story](/story) — one shared, chaptered narrative.
+6. [Open Questions](/questions) — questions and individual answers.
+7. [The Choice](/choice) — one shared decision at a time.
+8. [The Drawing Board](/draw) — individual sketches left for strangers.
+9. [The Garden](/garden) — plants that grow in a shared space.
+10. [Visitors Map](/map) — countries people choose to mark.
+
+The collection is complete at ten spaces. There are no accounts, rankings, analytics, or tracking scripts.
 
 ## Develop
 
-Requires Node 22.23.4–22.x and npm 9.6.5 or later. `npm ci`, `mkdir -p data`, then in separate terminals run `npm run dev:server` and `npm run dev:web`. Open http://localhost:4321/wall, http://localhost:4321/chat, or http://localhost:4321/bottle. The local database is in `data/`. See `.env.example`; environment variables must be exported to the server process. `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` are the standard checks. `npm run test:browser` runs isolated Chromium checks using disposable databases at desktop, large desktop, tablet, narrow mobile, and mobile landscape sizes; install Playwright Chromium or set `CHROMIUM_PATH`. `npm run test:built` runs the compiled app over an isolated HTTPS Caddy instance and requires a production build, Caddy, OpenSSL and Chromium. `npm run test:production` checks the compiled backend with production-only dependencies in a temporary directory. `npm run test:load` starts an isolated compiled backend, retains the 500-client Wall checks, then runs a mixed 500-connection workload with 400 Wall clients and 100 Chat clients on loopback using a disposable database. Do not point the load test at a public or shared server. Astro's development tooling has its own optional telemetry; disable it with `npx astro telemetry disable`.
+Requires Node 22.23.4–22.x and npm 9.6.5 or later. Run npm ci, then start npm run dev:server and npm run dev:web in separate terminals. The local SQLite database is in data/; see .env.example for server configuration.
 
-Keyboard users can focus the Wall, move the selection with arrow keys (Shift moves ten pixels), and place with Enter or Space. In [Global Chat](/chat), visitors can read the recent conversation and send text with an optional nickname. In [Message in a Bottle](/bottle), visitors can release a short note and later find one at random. See [Global Chat operations and protocol](docs/GLOBAL-CHAT.md) and [Message in a Bottle operations and protocol](docs/BOTTLE.md).
+Standard checks are npm run lint, npm run typecheck, npm test, and npm run build. npm run test:browser uses isolated databases and Chromium across desktop, large desktop, tablet, narrow mobile, and mobile landscape. Set CHROMIUM_PATH if Chromium is installed in a nonstandard location. npm run test:built checks the compiled app over isolated HTTPS Caddy. npm run test:production checks the compiled backend with production-only dependencies, and npm run test:load runs isolated Wall and Chat connection scenarios. Never point tests or load checks at a public or shared server.
 
-Production is deployed at [open.armsteel.dev](https://open.armsteel.dev). See [Adding a space](docs/ADDING-A-SPACE.md) for the practical implementation guide, [architecture](docs/ARCHITECTURE.md) for shared boundaries, and [deployment](docs/DEPLOYMENT.md) for release and recovery gates. Identity, realtime, database, design, and operational conventions are documented under `docs/`.
+The Wall supports keyboard navigation and placement. The Drawing Board also supports keyboard drawing; Garden has an accessible plot selector; Visitors Map has a country selector as an alternative to map clicks.
+
+Production runs at [open.armsteel.dev](https://open.armsteel.dev). See [the architecture](docs/ARCHITECTURE.md), [space details](docs/FINAL-SPACES.md), [database rules](docs/DATABASE.md), [privacy](docs/IDENTITY-PRIVACY.md), and [deployment and rollback](docs/DEPLOYMENT.md).

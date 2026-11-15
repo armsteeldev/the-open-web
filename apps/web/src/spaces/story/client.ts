@@ -78,10 +78,17 @@ if (passageRegion && empty && writing && form && passageInput && submitButton &&
         paragraph.className = 'story-fragment';
         paragraph.dataset.removed = String(contribution.removed);
         paragraph.textContent = contribution.passage;
+        const stamp = formatTime(contribution.createdAt);
+        const details = document.createElement('details');
+        details.className = 'story-meta';
+        const summary = document.createElement('summary');
+        summary.setAttribute('aria-label', 'Show passage timestamp: ' + stamp);
+        summary.textContent = '·';
         const time = document.createElement('time');
         time.dateTime = new Date(contribution.createdAt).toISOString();
-        time.textContent = formatTime(contribution.createdAt);
-        paragraph.append(time);
+        time.textContent = stamp;
+        details.append(summary, time);
+        paragraph.append(details);
         passageRegion.append(paragraph);
       }
       if (next.chapter.contributions.length === 0) {

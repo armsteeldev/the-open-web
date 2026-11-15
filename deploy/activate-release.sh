@@ -114,7 +114,7 @@ trap 'exit 143' TERM
 trap 'exit 129' HUP
 
 tar --no-same-owner -xzf "$archive" -C "$staging_dir"
-for expected_path in dist/apps/server/src/index.js dist/apps/server/src/spaces/chat/remove-message.js dist/apps/server/src/spaces/bottle/remove-bottle.js dist/apps/server/src/spaces/guestbook/remove-entry.js dist/apps/server/src/spaces/story/remove-contribution.js dist/apps/server/src/spaces/questions/remove-question.js dist/apps/server/src/spaces/questions/remove-answer.js dist/apps/server/src/spaces/choice/remove-decision.js dist/database/migrations apps/web/dist/wall/index.html apps/web/dist/chat/index.html apps/web/dist/bottle/index.html apps/web/dist/guestbook/index.html apps/web/dist/story/index.html apps/web/dist/questions/index.html apps/web/dist/choice/index.html apps/web/dist/release.json scripts/backup.mjs scripts/test-production.mjs package.json package-lock.json; do
+for expected_path in dist/apps/server/src/index.js dist/apps/server/src/spaces/chat/remove-message.js dist/apps/server/src/spaces/bottle/remove-bottle.js dist/apps/server/src/spaces/guestbook/remove-entry.js dist/apps/server/src/spaces/story/remove-contribution.js dist/apps/server/src/spaces/questions/remove-question.js dist/apps/server/src/spaces/questions/remove-answer.js dist/apps/server/src/spaces/choice/remove-decision.js dist/apps/server/src/spaces/draw/remove-drawing.js dist/apps/server/src/spaces/garden/remove-plant.js dist/apps/server/src/spaces/map/remove-contribution.js dist/database/migrations apps/web/dist/wall/index.html apps/web/dist/chat/index.html apps/web/dist/bottle/index.html apps/web/dist/guestbook/index.html apps/web/dist/story/index.html apps/web/dist/questions/index.html apps/web/dist/choice/index.html apps/web/dist/draw/index.html apps/web/dist/garden/index.html apps/web/dist/map/index.html apps/web/dist/data/visitors-world.json apps/web/dist/release.json scripts/backup.mjs scripts/test-production.mjs package.json package-lock.json; do
   [[ -e $staging_dir/$expected_path ]] || fail "release archive is missing $expected_path"
 done
 manifest=$(cat "$staging_dir/apps/web/dist/release.json")
@@ -176,11 +176,25 @@ questions_list=$(curl --fail --silent --show-error --max-time 8 https://open.arm
 printf '%s' "$questions_list" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s);process.exit(Array.isArray(v.questions)&&("nextBefore" in v)?0:1)}catch{process.exit(1)}})' || fail 'public Open Questions response was invalid'
 choice_html=$(curl --fail --silent --show-error --max-time 12 https://open.armsteel.dev/choice/)
 [[ $choice_html == *'id="proposal-form"'* ]] || fail 'public The Choice page was incomplete'
-for navigation_label in 'The Wall' 'Global Chat' 'Message in a Bottle' 'Guestbook' 'The Story' 'Open Questions' 'The Choice'; do
+for navigation_label in 'The Wall' 'Global Chat' 'Message in a Bottle' 'Guestbook' 'The Story' 'Open Questions' 'The Choice' 'The Drawing Board' 'The Garden' 'Visitors Map'; do
   [[ $choice_html == *"$navigation_label"* ]] || fail "public navigation is missing $navigation_label"
 done
 choice_state=$(curl --fail --silent --show-error --max-time 8 https://open.armsteel.dev/api/choice/state) || fail 'public The Choice state endpoint failed'
 printf '%s' "$choice_state" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s);process.exit((v.active===null||typeof v.active==="object")&&Number.isSafeInteger(v.queuedCount)?0:1)}catch{process.exit(1)}})' || fail 'public The Choice response was invalid'
+draw_html=$(curl --fail --silent --show-error --max-time 12 https://open.armsteel.dev/draw/)
+[[ $draw_html == *'id="draw-surface"'* ]] || fail 'public Drawing Board page was incomplete'
+drawings=$(curl --fail --silent --show-error --max-time 8 https://open.armsteel.dev/api/draw/drawings) || fail 'public Drawing Board gallery endpoint failed'
+printf '%s' "$drawings" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s);process.exit(Array.isArray(v.drawings)&&("nextBefore" in v)?0:1)}catch{process.exit(1)}})' || fail 'public Drawing Board gallery response was invalid'
+garden_html=$(curl --fail --silent --show-error --max-time 12 https://open.armsteel.dev/garden/)
+[[ $garden_html == *'id="garden-scene"'* ]] || fail 'public Garden page was incomplete'
+garden_state=$(curl --fail --silent --show-error --max-time 8 https://open.armsteel.dev/api/garden/state) || fail 'public Garden state endpoint failed'
+printf '%s' "$garden_state" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s);process.exit(Array.isArray(v.plants)&&Number.isSafeInteger(v.capacity)?0:1)}catch{process.exit(1)}})' || fail 'public Garden state response was invalid'
+map_html=$(curl --fail --silent --show-error --max-time 12 https://open.armsteel.dev/map/)
+[[ $map_html == *'id="world-map"'* ]] || fail 'public Visitors Map page was incomplete'
+map_state=$(curl --fail --silent --show-error --max-time 8 https://open.armsteel.dev/api/map/state) || fail 'public Visitors Map state endpoint failed'
+printf '%s' "$map_state" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s);process.exit(Array.isArray(v.countries)&&Number.isSafeInteger(v.total)&&("yourCountry" in v)?0:1)}catch{process.exit(1)}})' || fail 'public Visitors Map response was invalid'
+map_data=$(curl --fail --silent --show-error --max-time 12 https://open.armsteel.dev/data/visitors-world.json) || fail 'bundled Visitors Map boundaries could not be read'
+printf '%s' "$map_data" | node -e 'let s="";process.stdin.setEncoding("utf8");process.stdin.on("data",c=>s+=c).on("end",()=>{try{const v=JSON.parse(s);process.exit(Array.isArray(v.countries)&&v.countries.length>=200?0:1)}catch{process.exit(1)}})' || fail 'bundled Visitors Map boundaries were invalid'
 
 state_temp=$(mktemp "$root/.previous-release.XXXXXX")
 printf '%s\n' "$previous_release" > "$state_temp"

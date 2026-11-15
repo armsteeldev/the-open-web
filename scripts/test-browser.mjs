@@ -12,7 +12,7 @@ const temp=mkdtempSync(join(tmpdir(),'open-web-browser-'));const apiPort=await p
 try {
  web=spawn(process.execPath,['node_modules/astro/bin/astro.mjs','dev','--root','apps/web','--host','127.0.0.1','--port',String(webPort),'--strictPort','--ignore-lock'],{env:{...process.env,WEB_API_TARGET:api},stdio:['ignore','pipe','pipe']});
  await waitForOutput(web,base);
- const allTests=['menu','keyboard','accessibility','touch','viewport','tiles','race','reliability','refinement','chat-recovery','chat','bottle','expansion'];
+ const allTests=['menu','keyboard','accessibility','touch','viewport','tiles','race','reliability','refinement','chat-recovery','chat','bottle','expansion','final-spaces'];
  const selected=process.env.ONLY_BROWSER_TEST?[process.env.ONLY_BROWSER_TEST]:allTests;
  if(selected.some(name=>!allTests.includes(name)))throw Error(`Unknown browser test selection: ${selected.join(',')}`);
  for(const name of selected) {
@@ -20,7 +20,7 @@ try {
   server=spawn(process.execPath,['--import','tsx','apps/server/src/index.ts'],{env:{...process.env,DB_PATH:databasePath,OPEN_WEB_TEST_DB:databasePath,PORT:String(apiPort),ORIGIN:base,COOKIE_SECURE:'false',WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
   await waitForOutput(server,`Server listening at ${api}`);
   await waitFor(api+'/api/health',server);await waitFor(base+'/wall',web);
-  const test=spawn(process.execPath,[`tests/${name}.browser.mjs`],{env:{...process.env,OPEN_WEB_TEST_URL:base,OPEN_WEB_TEST_API:api,OPEN_WEB_TEST_DB:databasePath},stdio:'inherit'});
+  const test=spawn(process.execPath,[`tests/${name}.browser.mjs`],{env:{...process.env,OPEN_WEB_TEST_URL:base,OPEN_WEB_TEST_API:api,OPEN_WEB_TEST_DB:databasePath,FINAL_SPACES_SCREENSHOT_DIR:process.env.FINAL_SPACES_SCREENSHOT_DIR??''},stdio:'inherit'});
   const code=await new Promise((resolve,reject)=>{test.once('error',reject);test.once('exit',(code,signal)=>signal?reject(Error(`${name} terminated: ${signal}`)):resolve(code));});
   if(code!==0)throw Error(`${name} browser test failed (${code})`);
   await stop(server);server=undefined;

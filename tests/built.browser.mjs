@@ -81,7 +81,7 @@ try {
   await page.goto(`${base}/chat/`);
   await page.getByText('Connected', { exact: true }).waitFor({ timeout: 15000 });
   await page.locator('.global-menu > summary').click();
-  assert.equal(await page.locator('.global-menu nav a').count(), 7);
+  assert.equal(await page.locator('.global-menu nav a').count(), 10);
   assert.equal(await page.locator('.global-menu nav a[aria-current="page"]').textContent(), 'Global Chat');
   await page.keyboard.press('Escape');
   await page.getByLabel('Message', { exact: true }).fill('compiled HTTPS chat smoke');
@@ -99,7 +99,7 @@ try {
   await bottleReader.getByRole('button', { name: 'Find a bottle' }).click();
   await bottleReader.getByText('compiled HTTPS bottle smoke', { exact: true }).waitFor();
   await bottleReader.locator('.global-menu > summary').click();
-  assert.equal(await bottleReader.locator('.global-menu nav a').count(), 7);
+  assert.equal(await bottleReader.locator('.global-menu nav a').count(), 10);
   assert.equal(await bottleReader.locator('.global-menu nav a[aria-current="page"]').textContent(), 'Message in a Bottle');
   await bottleReaderContext.close();
 
@@ -111,13 +111,31 @@ try {
     { path: '/story/', title: 'The Story' },
     { path: '/questions/', title: 'Open Questions' },
     { path: '/choice/', title: 'The Choice' },
+    { path: '/draw/', title: 'The Drawing Board' },
+    { path: '/garden/', title: 'The Garden' },
+    { path: '/map/', title: 'Visitors Map' },
   ]) {
     const builtPage = await page.goto(`${base}${space.path}`);
     assert.equal(builtPage.status(), 200, `${space.path} built page response`);
     if (space.path === '/wall/') await page.locator('#wall').waitFor();
     else await page.getByRole('heading', { name: space.title }).waitFor();
+    if (space.path === '/draw/') {
+      assert.ok(await page.locator('#draw-surface').isVisible());
+      assert.equal(await page.locator('[data-tool]').count(), 2);
+    }
+    if (space.path === '/garden/') {
+      assert.ok(await page.locator('#garden-scene').isVisible());
+      await page.waitForFunction(() => (document.querySelector('#plant-location')?.options.length ?? 0) > 0);
+      assert.ok(await page.locator('#plant-location option').count());
+    }
+    if (space.path === '/map/') {
+      await page.locator('#country-shapes path').first().waitFor();
+      assert.ok((await page.locator('#country-shapes path').count()) >= 200, 'bundled world boundaries load from the compiled site');
+      await page.waitForFunction(() => Boolean(document.querySelector('#country-select option[value="US"]')));
+      assert.ok((await page.locator('#country-select option').count()) >= 240, 'the country picker includes the ISO country list');
+    }
     await page.locator('.global-menu > summary').click();
-    assert.equal(await page.locator('.global-menu nav a').count(), 7);
+    assert.equal(await page.locator('.global-menu nav a').count(), 10);
     assert.equal(await page.locator('.global-menu nav a[aria-current="page"]').getAttribute('href'), space.path.slice(0, -1));
     await page.keyboard.press('Escape');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${space.path} built page has no horizontal overflow`);
@@ -134,7 +152,7 @@ try {
     console.log(JSON.stringify(layout));
     await page.screenshot({ path: process.env.OPEN_WEB_SCREENSHOT });
   }
-  console.log('PASS compiled app over isolated HTTPS Caddy: CSP, Secure cookie, WSS, seven-space routing and menu, spoofed proxy-header rejection');
+  console.log('PASS compiled app over isolated HTTPS Caddy: CSP, Secure cookie, WSS, ten-space routing and menu, spoofed proxy-header rejection');
 } finally {
   await browser.close();
 }
